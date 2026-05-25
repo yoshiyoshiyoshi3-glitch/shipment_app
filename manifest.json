@@ -1,0 +1,15 @@
+{
+  "name": "出荷伝票作成ツール",
+  "short_name": "出荷伝票",
+  "description": "切り花農家向け 音声対応 出荷伝票作成アプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#faf7f4",
+  "theme_color": "#b87888",
+  "orientation": "portrait",
+  "lang": "ja",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
