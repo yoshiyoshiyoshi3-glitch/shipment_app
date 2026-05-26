@@ -601,23 +601,6 @@
     <div id="micDiagOut" style="font-size:12px;line-height:2;margin-top:10px"></div>
   </div>
   <div class="card" style="margin-top:12px">
-    <div class="section-title">&#x1F50A; VOICEVOX 読み上げ設定</div>
-    <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(122,158,130,0.25)">
-      &#x2139; <a href="https://voicevox.hiroshiba.jp/" target="_blank" style="color:var(--sage)">VOICEVOX</a>（無料）をインストール・起動すると自然な日本語音声で読み上げます。<br>
-      未起動の場合はブラウザ内蔵音声にフォールバックします。
-    </div>
-    <div class="settings-grid">
-      <label class="settings-label">VOICEVOX URL</label>
-      <input type="text" id="voicevoxUrlInput" class="settings-input" placeholder="http://localhost:50021" value="http://localhost:50021">
-      <label class="settings-label">話者</label>
-      <select id="voicevoxSpeakerSel" class="settings-input" style="padding:8px 10px"><option value="3">（接続すると一覧が表示されます）</option></select>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn-export" onclick="saveVoicevoxSettings()">&#x1F4BE; 保存・接続テスト</button>
-      <span id="voicevoxStatus" style="font-size:13px;color:var(--text-mid)">確認中…</span>
-    </div>
-  </div>
-  <div class="card" style="margin-top:12px">
     <div class="section-title">&#x1F33F; 品目・品種マスタ編集</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <select id="masterFlowerSel" onchange="buildMasterVarietyList()" style="flex:1;min-width:120px;padding:8px;border:1.5px solid #e0cfc8;border-radius:6px;font-size:14px">
@@ -928,7 +911,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1843';
+var APP_VERSION='20260526-1846';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2813,10 +2796,6 @@ function shareViaLine(market,mi){
 
 // ── TTS（読み上げ）─────────────────────────────────────────────────────
 var _ttsVoice=null,_ttsSpeaking=false,_ttsPaused=false;
-var _voicevoxUrl='http://localhost:50021';
-var _voicevoxSpeaker=3;
-var _voicevoxAvailable=false;
-var _currentAudio=null;
 // 読み上げ速度（0.5=遅い〜2.0=速い、デフォルト1.0）
 var _ttsRate=1.0;
 (function(){var v=parseFloat(localStorage.getItem('ttsRate'));if(v>=0.5&&v<=2.0)_ttsRate=v;})();
@@ -2828,11 +2807,6 @@ function setTTSRate(v){
   var el=document.getElementById('ttsRateSelect');
   if(el)el.value=String(v);
 }
-// localStorage から設定復元
-(function(){
-  var u=localStorage.getItem('voicevoxUrl'); if(u)_voicevoxUrl=u;
-  var s=parseInt(localStorage.getItem('voicevoxSpeaker')); if(!isNaN(s))_voicevoxSpeaker=s;
-})();
 
 function initTTSVoice(){
   if(!window.speechSynthesis)return;
@@ -2852,51 +2826,6 @@ function initTTSVoice(){
   window.speechSynthesis.onvoiceschanged=load;
 }
 
-function checkVoicevox(cb){
-  var xhr=new XMLHttpRequest();
-  xhr.timeout=2000;
-  xhr.onload=function(){
-    _voicevoxAvailable=true;
-    var el=document.getElementById('voicevoxStatus');
-    if(el){el.textContent='✓ 接続中';el.style.color='#7a9e82';}
-    loadVoicevoxSpeakers();
-    if(cb)cb(true);
-  };
-  xhr.onerror=xhr.ontimeout=function(){
-    _voicevoxAvailable=false;
-    var el=document.getElementById('voicevoxStatus');
-    if(el){el.textContent='✗ 未起動';el.style.color='#d45050';}
-    if(cb)cb(false);
-  };
-  try{xhr.open('GET',_voicevoxUrl+'/version');xhr.send();}catch(e){_voicevoxAvailable=false;}
-}
-
-function loadVoicevoxSpeakers(){
-  fetch(_voicevoxUrl+'/speakers')
-    .then(function(r){return r.json();})
-    .then(function(data){
-      var sel=document.getElementById('voicevoxSpeakerSel');
-      if(!sel)return;
-      sel.innerHTML='';
-      data.forEach(function(sp){
-        sp.styles.forEach(function(st){
-          var opt=document.createElement('option');
-          opt.value=st.id;
-          opt.textContent=sp.name+'（'+st.name+'）';
-          if(st.id===_voicevoxSpeaker)opt.selected=true;
-          sel.appendChild(opt);
-        });
-      });
-    }).catch(function(){});
-}
-
-function saveVoicevoxSettings(){
-  var urlEl=document.getElementById('voicevoxUrlInput');
-  var spEl=document.getElementById('voicevoxSpeakerSel');
-  if(urlEl){_voicevoxUrl=urlEl.value.trim()||'http://localhost:50021';localStorage.setItem('voicevoxUrl',_voicevoxUrl);}
-  if(spEl&&spEl.value){_voicevoxSpeaker=parseInt(spEl.value);localStorage.setItem('voicevoxSpeaker',String(_voicevoxSpeaker));}
-  checkVoicevox(function(ok){setStatus(ok?'VOICEVOX設定を保存しました':'VOICEVOXに接続できません（アプリが起動しているか確認してください）',ok?'ok':'error');});
-}
 
 function ttsFormat(t){
   return String(t||'')
@@ -2918,18 +2847,6 @@ function buildItemSpeechParts(it){
   return parts;
 }
 
-function voicevoxSynth(text){
-  return fetch(_voicevoxUrl+'/audio_query?text='+encodeURIComponent(text)+'&speaker='+_voicevoxSpeaker,{method:'POST'})
-    .then(function(r){if(!r.ok)throw new Error('audio_query '+r.status);return r.json();})
-    .then(function(q){
-      // 速度をaudio_queryのspeedScaleに反映
-      q.speedScale=_ttsRate;
-      return fetch(_voicevoxUrl+'/synthesis?speaker='+_voicevoxSpeaker,{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(q)
-      });
-    })
-    .then(function(r){if(!r.ok)throw new Error('synthesis '+r.status);return r.blob();});
-}
 
 function _speakWebTTS(text){
   if(!window.speechSynthesis)return;
@@ -2955,37 +2872,16 @@ function speakAllItems(){
   segments.push('以上、'+items.length+'品目です。');
   var fullText=segments.join('。');
   _ttsSpeaking=true;_ttsPaused=false;updateTTSUI();
-  if(_voicevoxAvailable){
-    voicevoxSynth(fullText)
-      .then(function(blob){
-        var url=URL.createObjectURL(blob);
-        _currentAudio=new Audio(url);
-        _currentAudio.onended=function(){URL.revokeObjectURL(url);_currentAudio=null;_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
-        _currentAudio.onerror=function(){_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
-        _currentAudio.play().catch(function(){_ttsSpeaking=false;updateTTSUI();});
-      })
-      .catch(function(){
-        _voicevoxAvailable=false;
-        setStatus('VOICEVOX接続失敗、内蔵音声で読み上げます','error');
-        _speakWebTTS(fullText);
-      });
-  } else {
-    _speakWebTTS(fullText);
-  }
+  _speakWebTTS(fullText);
 }
 function toggleTTSPause(){
-  if(_currentAudio){
-    if(_ttsPaused){_currentAudio.play();_ttsPaused=false;}
-    else{_currentAudio.pause();_ttsPaused=true;}
-    updateTTSUI();
-  } else if(window.speechSynthesis){
+  if(window.speechSynthesis){
     if(_ttsPaused){window.speechSynthesis.resume();_ttsPaused=false;}
     else{window.speechSynthesis.pause();_ttsPaused=true;}
     updateTTSUI();
   }
 }
 function stopTTS(){
-  if(_currentAudio){_currentAudio.pause();_currentAudio=null;}
   if(window.speechSynthesis)window.speechSynthesis.cancel();
   _ttsSpeaking=false;_ttsPaused=false;updateTTSUI();
 }
@@ -2997,7 +2893,6 @@ function updateTTSUI(){
   if(ab)ab.textContent=_ttsSpeaking?'🔊 読み上げ中…':'🔊 全品目読み上げ';
 }
 initTTSVoice();
-checkVoicevox();
 
 // ══════════════════════════════════════════════════════
 // 精算機能（Claude API + IMAP）
@@ -3602,9 +3497,6 @@ function importData(){
 var _origBuildSettings=buildSettingsTab;
 buildSettingsTab=function(){
   _origBuildSettings();loadApiConfigToForm();
-  var ui=document.getElementById('voicevoxUrlInput');
-  if(ui)ui.value=_voicevoxUrl;
-  checkVoicevox();
   // GitHubトークン表示
   var ti=document.getElementById('githubTokenInput');
   if(ti&&_gistToken)ti.value=_gistToken;
