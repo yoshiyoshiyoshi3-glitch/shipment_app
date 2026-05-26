@@ -316,22 +316,63 @@
   <button class="btn-clear" style="margin-top:8px" onclick="showTab('step2')">&#x2190; 振り分けに戻る</button>
 </div>
 <div id="step4" class="tab-panel">
-  <div class="card">
-    <div class="section-title">&#x1F4CA; 品種・規格別 年間統計（過去1年）</div>
-    <div class="stat-filter">
-      <select id="statFlower" onchange="buildStatView()"><option value="">すべての品目</option></select>
-      <select id="statYear" onchange="buildStatView()"><option value="">すべての年</option></select>
-      <input type="text" id="statSearch" placeholder="品種名で絞り込み" oninput="buildStatView()" style="flex:1;min-width:120px">
-    </div>
-    <div class="stat-wrap"><table class="stat-table" id="statTable">
-      <thead><tr><th>品目名</th><th>品種・色</th><th>規格</th><th>合計箱数</th><th>合計本数</th><th>出荷回数</th><th>最終出荷日</th></tr></thead>
-      <tbody id="statBody"></tbody>
-    </table></div>
+  <!-- ビュー切り替え -->
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+    <button class="tab-btn active" id="sv_annual_btn" onclick="switchStatView('annual')" style="flex:1;font-size:13px;min-height:40px">&#x1F4CA; 品種別</button>
+    <button class="tab-btn" id="sv_monthly_btn" onclick="switchStatView('monthly')" style="flex:1;font-size:13px;min-height:40px">&#x1F4C5; 月別</button>
+    <button class="tab-btn" id="sv_daily_btn" onclick="switchStatView('daily')" style="flex:1;font-size:13px;min-height:40px">&#x1F4C6; 日別</button>
   </div>
-  <div class="card" style="margin-top:10px">
-    <div class="section-title">&#x1F4CB; 出荷履歴</div>
-    <div id="histList" style="max-height:40vh;overflow-y:auto"></div>
-    <button class="btn-clear" style="margin-top:8px;font-size:11px;color:#c62828" onclick="clearHistory()">&#x1F5D1; 履歴をすべて削除</button>
+
+  <!-- 品種別集計（既存） -->
+  <div id="sv_annual_panel">
+    <div class="card">
+      <div class="section-title">&#x1F4CA; 品種・規格別集計</div>
+      <div class="stat-filter">
+        <select id="statFlower" onchange="buildStatView()"><option value="">すべての品目</option></select>
+        <select id="statYear" onchange="buildStatView()"><option value="">すべての年</option></select>
+        <input type="text" id="statSearch" placeholder="品種名で絞り込み" oninput="buildStatView()" style="flex:1;min-width:120px">
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="statTable">
+        <thead><tr><th>品目名</th><th>品種・色</th><th>規格</th><th>合計箱数</th><th>合計本数</th><th>出荷回数</th><th>最終出荷日</th></tr></thead>
+        <tbody id="statBody"></tbody>
+      </table></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <div class="section-title">&#x1F4CB; 出荷履歴</div>
+      <div id="histList" style="max-height:40vh;overflow-y:auto"></div>
+      <button class="btn-clear" style="margin-top:8px;font-size:11px;color:#c62828" onclick="clearHistory()">&#x1F5D1; 履歴をすべて削除</button>
+    </div>
+  </div>
+
+  <!-- 月別集計（新規） -->
+  <div id="sv_monthly_panel" style="display:none">
+    <div class="card">
+      <div class="section-title">&#x1F4C5; 月別集計</div>
+      <div class="stat-filter">
+        <select id="mstatYear" onchange="buildMonthlyView()"><option value="">すべての年</option></select>
+        <select id="mstatFlower" onchange="buildMonthlyView()"><option value="">すべての品目</option></select>
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="mstatTable">
+        <thead><tr><th>年月</th><th>出荷日数</th><th>合計箱数</th><th>合計本数</th><th>主な品目（上位3品目）</th></tr></thead>
+        <tbody id="mstatBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- 日別集計（新規） -->
+  <div id="sv_daily_panel" style="display:none">
+    <div class="card">
+      <div class="section-title">&#x1F4C6; 日別集計</div>
+      <div class="stat-filter">
+        <select id="dstatYear" onchange="buildDailyView()"><option value="">すべての年</option></select>
+        <select id="dstatMonth" onchange="buildDailyView()"><option value="">すべての月</option></select>
+        <select id="dstatFlower" onchange="buildDailyView()"><option value="">すべての品目</option></select>
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="dstatTable">
+        <thead><tr><th>出荷日</th><th>品目・品種（等級）</th><th>合計箱数</th><th>合計本数</th></tr></thead>
+        <tbody id="dstatBody"></tbody>
+      </table></div>
+    </div>
   </div>
 </div>
 <div id="step6" class="tab-panel">
@@ -825,7 +866,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1802';
+var APP_VERSION='20260526-1805';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2374,6 +2415,137 @@ function buildStatView(){
       });
     }
   }
+}
+// ── 統計ビュー切り替え ────────────────────────────────────────────────
+function switchStatView(v){
+  ['annual','monthly','daily'].forEach(function(x){
+    var btn=document.getElementById('sv_'+x+'_btn');
+    var panel=document.getElementById('sv_'+x+'_panel');
+    if(btn){btn.classList.toggle('active',x===v);}
+    if(panel){panel.style.display=x===v?'':'none';}
+  });
+  if(v==='annual')buildStatView();
+  else if(v==='monthly')buildMonthlyView();
+  else if(v==='daily')buildDailyView();
+}
+// 年・品目ドロップダウンを共通で更新
+function _fillStatSelects(hist,yearId,flowerBarId,curYear,curFlower){
+  var years={},flowers={};
+  hist.forEach(function(r){
+    if(r.date)years[r.date.slice(0,4)]=true;
+    (r.items||[]).forEach(function(it){if(it.name)flowers[it.name]=true;});
+  });
+  var ysel=document.getElementById(yearId);
+  if(ysel){
+    ysel.innerHTML='<option value="">すべての年</option>';
+    Object.keys(years).sort().reverse().forEach(function(y){var o=document.createElement('option');o.value=y;o.textContent=y+'年';ysel.appendChild(o);});
+    if(curYear)ysel.value=curYear;
+  }
+  var fsel=document.getElementById(flowerBarId);
+  if(fsel){
+    fsel.innerHTML='<option value="">すべての品目</option>';
+    Object.keys(flowers).sort().forEach(function(f){var o=document.createElement('option');o.value=f;o.textContent=f;fsel.appendChild(o);});
+    if(curFlower)fsel.value=curFlower;
+  }
+}
+// ── 月別集計 ──────────────────────────────────────────────────────────
+function buildMonthlyView(){
+  var hist=loadHistory();
+  var fy=(document.getElementById('mstatYear')||{}).value||'';
+  var ff=(document.getElementById('mstatFlower')||{}).value||'';
+  _fillStatSelects(hist,'mstatYear','mstatFlower',fy,ff);
+  fy=(document.getElementById('mstatYear')||{}).value||'';
+  ff=(document.getElementById('mstatFlower')||{}).value||'';
+  var monthly={};
+  hist.forEach(function(r){
+    if(!r.date)return;
+    if(fy&&r.date.slice(0,4)!==fy)return;
+    var ym=r.date.slice(0,7);
+    if(!monthly[ym])monthly[ym]={ym:ym,days:{},boxes:0,stems:0,flowers:{}};
+    monthly[ym].days[r.date]=true;
+    (r.items||[]).forEach(function(it){
+      if(ff&&it.name!==ff)return;
+      monthly[ym].boxes+=(it.totalBoxes||0);
+      monthly[ym].stems+=(it.totalStems||0);
+      monthly[ym].flowers[it.name]=(monthly[ym].flowers[it.name]||0)+(it.totalBoxes||0);
+    });
+  });
+  var rows=Object.values(monthly).sort(function(a,b){return b.ym>a.ym?1:-1;});
+  var tbody=document.getElementById('mstatBody');
+  if(!tbody)return;
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#888;padding:16px">データがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML=rows.map(function(m){
+    var top=Object.entries(m.flowers).sort(function(a,b){return b[1]-a[1];}).slice(0,3)
+      .map(function(e){return e[0]+'<span style="color:#aaa;font-size:10px">('+e[1]+'箱)</span>';}).join('　');
+    var dcount=Object.keys(m.days).length;
+    return'<tr>'+
+      '<td><strong>'+m.ym.replace('-','年')+'月</strong></td>'+
+      '<td style="text-align:center">'+dcount+'日</td>'+
+      '<td style="text-align:center"><strong>'+m.boxes+'</strong>箱</td>'+
+      '<td style="text-align:center">'+(m.stems>0?m.stems+'本':'－')+'</td>'+
+      '<td style="font-size:11px;line-height:1.8">'+top+'</td></tr>';
+  }).join('');
+}
+// ── 日別集計 ──────────────────────────────────────────────────────────
+function buildDailyView(){
+  var hist=loadHistory();
+  var fy=(document.getElementById('dstatYear')||{}).value||'';
+  var fm=(document.getElementById('dstatMonth')||{}).value||'';
+  var ff=(document.getElementById('dstatFlower')||{}).value||'';
+  _fillStatSelects(hist,'dstatYear','dstatFlower',fy,ff);
+  fy=(document.getElementById('dstatYear')||{}).value||'';
+  ff=(document.getElementById('dstatFlower')||{}).value||'';
+  // 月ドロップダウン更新
+  var months={};
+  hist.forEach(function(r){if(r.date&&(!fy||r.date.slice(0,4)===fy))months[r.date.slice(0,7)]=true;});
+  var msel=document.getElementById('dstatMonth');
+  if(msel){
+    msel.innerHTML='<option value="">すべての月</option>';
+    Object.keys(months).sort().reverse().forEach(function(ym){
+      var o=document.createElement('option');
+      o.value=ym;
+      o.textContent=ym.replace('-','年')+'月';
+      msel.appendChild(o);
+    });
+    if(fm)msel.value=fm;
+    fm=msel.value;
+  }
+  // 日別に集計
+  var daily={};
+  hist.forEach(function(r){
+    if(!r.date)return;
+    if(fy&&r.date.slice(0,4)!==fy)return;
+    if(fm&&r.date.slice(0,7)!==fm)return;
+    var d=r.date;
+    if(!daily[d])daily[d]={date:d,boxes:0,stems:0,items:[]};
+    (r.items||[]).forEach(function(it){
+      if(ff&&it.name!==ff)return;
+      var label=it.name+(it.variety?' '+it.variety:'')+(it.grade?' ['+it.grade+']':'')+(it.size?' '+it.size+'cm':'');
+      daily[d].items.push({label:label,boxes:it.totalBoxes||0,stems:it.totalStems||0});
+      daily[d].boxes+=(it.totalBoxes||0);
+      daily[d].stems+=(it.totalStems||0);
+    });
+  });
+  var rows=Object.values(daily).sort(function(a,b){return b.date>a.date?1:-1;});
+  var tbody=document.getElementById('dstatBody');
+  if(!tbody)return;
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#888;padding:16px">データがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML=rows.map(function(d){
+    var items=d.items.sort(function(a,b){return b.boxes-a.boxes;})
+      .map(function(i){return i.label+'<span style="color:#aaa;font-size:10px">('+i.boxes+'箱)</span>';}).join('<br>');
+    return'<tr>'+
+      '<td style="white-space:nowrap"><strong>'+d.date+'</strong></td>'+
+      '<td style="font-size:11px;line-height:1.9">'+items+'</td>'+
+      '<td style="text-align:center;vertical-align:top"><strong>'+d.boxes+'</strong>箱</td>'+
+      '<td style="text-align:center;vertical-align:top">'+(d.stems>0?d.stems+'本':'－')+'</td>'+
+      '</tr>';
+  }).join('');
 }
 function buildHistCard(r){
   var card=document.createElement('div');
