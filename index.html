@@ -618,16 +618,14 @@
       設定した値は音声入力・手動入力どちらにも反映されます。空欄のままにすると既定値なし（手動入力）になります。
     </div>
     <div style="overflow-x:auto">
-      <table class="stat-table" id="flowerDefaultsTable" style="min-width:680px">
+      <table class="stat-table" id="flowerDefaultsTable" style="min-width:500px">
         <thead>
           <tr>
             <th style="text-align:left;min-width:100px">品目名</th>
-            <th style="min-width:68px">規格(cm)</th>
-            <th style="min-width:76px">輪数</th>
-            <th style="min-width:90px">1箱の本数</th>
-            <th style="min-width:76px">等級<br><span style="font-size:10px;font-weight:400">規定値</span></th>
-            <th style="min-width:84px;line-height:1.4">B等級<br><span style="font-size:10px;font-weight:400">規格上限(cm)</span></th>
-            <th style="min-width:84px;line-height:1.4">外等級<br><span style="font-size:10px;font-weight:400">規格上限(cm)</span></th>
+            <th style="min-width:70px">規格(cm)</th>
+            <th style="min-width:80px">輪数</th>
+            <th style="min-width:100px">1箱の本数</th>
+            <th style="min-width:80px">等級<br><span style="font-size:10px;font-weight:400">規定値</span></th>
           </tr>
         </thead>
         <tbody id="flowerDefaultsBody"></tbody>
@@ -636,6 +634,25 @@
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
       <button class="btn-export" onclick="saveFlowerDefaults()">&#x1F4BE; 規定値を保存</button>
       <span id="flowerDefaultsSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x26A0;&#xFE0F; 外等級になる備考キーワード</div>
+    <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.7;background:var(--sage-light);border-radius:6px;padding:7px 10px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; 備考欄にこれらの言葉が入力されると、自動で等級が「外」に変わります。<br>
+      音声入力でこれらの言葉が含まれた場合も同様に備考にセットされ等級が外になります。
+    </div>
+    <div id="gaichiKeywordsContainer" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;min-height:36px;padding:6px;background:#FAFAFA;border:1px solid var(--border);border-radius:6px"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="gaichiKeywordInput" placeholder="キーワードを入力（例：曲がり）"
+        style="font-size:14px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;width:200px"
+        onkeydown="if(event.key==='Enter'){addGaichiKeyword();event.preventDefault();}">
+      <button class="btn-export" onclick="addGaichiKeyword()">&#x2795; 追加</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" onclick="saveGaichiKeywords()">&#x1F4BE; キーワードを保存</button>
+      <span id="gaichiSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
     </div>
   </div>
 </div>
@@ -753,14 +770,18 @@ function initMarkets(){
   var pnField=document.getElementById('producerName');
   if(pnField&&pinfo.name&&!pnField.value)pnField.value=pinfo.name;
 }
-var GAICHI_KEYWORDS = ['曲がり','曲り','まがり','細い','ほそい','短い','みじかい','傷','きず','外','そと','規格外','軟い','やわらかい','柔らかい','なんい'];
-// 備考欄に入れるが等級を外にしないキーワード（GAICHIとは別扱い）
+// 外等級になる備考キーワード（設定タブで編集・localStorageに保存）
+var GAICHI_KEYWORDS_DEFAULT = ['曲がり','曲り','まがり','細い','ほそい','短い','みじかい','傷','きず','外','そと','規格外','軟い','やわらかい','柔らかい','なんい'];
+var GAICHI_KEYWORDS = GAICHI_KEYWORDS_DEFAULT.slice();
+(function(){
+  try{var s=localStorage.getItem('gaichiKeywords');if(s){var arr=JSON.parse(s);if(Array.isArray(arr)&&arr.length>0)GAICHI_KEYWORDS=arr;}}catch(e){}
+})();
+// 備考欄に入れるが等級を外にしないキーワード（音声入力専用・内部用）
 var NOTE_ONLY_KEYWORDS = ['短い','みじかい','傷','きず'];
 var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワリ':'80'};
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
 var DEFAULT_COUNT = {};
 var DEFAULT_GRADE = {};
-var GRADE_RULES = {};  // {品目名: {bMax:cm数値, extMax:cm数値}}
 var RINGS_MASTER = ['3F↑','2F','SP'];
 // 品目ごとの規定値（設定タブで編集・localStorageに保存）
 var FLOWER_DEFAULTS = {};
@@ -769,7 +790,7 @@ var FLOWER_DEFAULTS = {};
   _applyFlowerDefaults();
 })();
 function _applyFlowerDefaults(){
-  DEFAULT_COUNT={};DEFAULT_GRADE={};GRADE_RULES={};
+  DEFAULT_COUNT={};DEFAULT_GRADE={};
   for(var n in FLOWER_DEFAULTS){
     if(!FLOWER_DEFAULTS.hasOwnProperty(n))continue;
     var d=FLOWER_DEFAULTS[n];
@@ -778,12 +799,6 @@ function _applyFlowerDefaults(){
     else if(d.rings===''&&n in DEFAULT_RINGS)delete DEFAULT_RINGS[n];
     if(d.count)DEFAULT_COUNT[n]=d.count;
     if(d.grade)DEFAULT_GRADE[n]=d.grade;
-    var bm=parseInt(d.bMax,10);var em=parseInt(d.extMax,10);
-    if(!isNaN(bm)||!isNaN(em)){
-      GRADE_RULES[n]={};
-      if(!isNaN(em))GRADE_RULES[n].extMax=em;
-      if(!isNaN(bm))GRADE_RULES[n].bMax=bm;
-    }
   }
 }
 var FLOWER_NAME_MAP = [
@@ -965,7 +980,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-2005';
+var APP_VERSION='20260526-2016';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1482,24 +1497,6 @@ function checkItemInputs(id){
     else{_setInputState(bEl,'',hw,he);}
   }
 
-  // 等級の自動判定（GRADE_RULESに従い規格から自動セット）
-  var gEl=document.getElementById('g_'+id);
-  var nEl2=document.getElementById('n_'+id);
-  if(gEl&&nEl2&&sEl&&sEl.value.trim()!==''){
-    var sv2=_parseInputNum(sEl.value);
-    if(!isNaN(sv2)&&sv2>0){
-      var nm2=nEl2.value.trim();
-      var gr=GRADE_RULES[nm2];
-      if(gr){
-        var autoGrade=null;
-        if(gr.extMax&&sv2<=gr.extMax)autoGrade='外';
-        else if(gr.bMax&&sv2<=gr.bMax)autoGrade='B';
-        else autoGrade=DEFAULT_GRADE[nm2]||'A';
-        if(autoGrade&&gEl.value!==autoGrade){gEl.value=autoGrade;onGradeChange(id);}
-      }
-    }
-  }
-
   // カード枠の色更新
   if(card){
     card.classList.remove('has-warn','has-error');
@@ -1573,8 +1570,7 @@ function addItem(data){
   if(rEl)rEl.addEventListener('input',function(){
     refreshSummary(id);
     var val=this.value;
-    var GAICHI_NOTE=['曲がり','曲り','まがり','細い','ほそい','軟い','やわらかい','柔らかい'];
-    if(GAICHI_NOTE.some(function(kw){return val.indexOf(kw)>=0;})){
+    if(GAICHI_KEYWORDS.some(function(kw){return val.indexOf(kw)>=0;})){
       var gs=document.getElementById('g_'+id);
       if(gs&&gs.value!=='外'){gs.value='外';onGradeChange(id);}
     }
@@ -2484,8 +2480,6 @@ function buildFlowerDefaultsUI(){
     var curRings=d.rings!==undefined?d.rings:(DEFAULT_RINGS[name]||'');
     var curCount=d.count!==undefined?d.count:(DEFAULT_COUNT[name]||'');
     var curGrade=d.grade!==undefined?d.grade:(DEFAULT_GRADE[name]||'');
-    var curBMax=d.bMax!==undefined?d.bMax:'';
-    var curExtMax=d.extMax!==undefined?d.extMax:'';
     var inp=function(cls,val,ph,w){
       return '<input type="text" inputmode="numeric" class="'+cls+'" value="'+esc(val)+'" placeholder="'+ph+'" style="width:'+w+'px;text-align:center;font-size:14px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">';
     };
@@ -2503,12 +2497,10 @@ function buildFlowerDefaultsUI(){
     tr.dataset.name=name;
     tr.innerHTML=
       '<td style="font-weight:600;font-size:13px;padding:6px 8px;white-space:nowrap">'+esc(name)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',56)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',60)+'</td>'+
       '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',78)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-bmax',curBMax,'例:70',62)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-extmax',curExtMax,'例:60',62)+'</td>';
+      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',84)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>';
     tbody.appendChild(tr);
   });
 }
@@ -2522,11 +2514,9 @@ function saveFlowerDefaults(){
     var rings=row.querySelector('.fdef-rings').value;
     var count=(row.querySelector('.fdef-count').value||'').trim();
     var grade=row.querySelector('.fdef-grade').value;
-    var bMax=(row.querySelector('.fdef-bmax').value||'').trim();
-    var extMax=(row.querySelector('.fdef-extmax').value||'').trim();
     // 数字のみなら単位を付与
     if(/^\d+$/.test(count))count=count+'本';
-    newDefs[name]={size:size,rings:rings,count:count,grade:grade,bMax:bMax,extMax:extMax};
+    newDefs[name]={size:size,rings:rings,count:count,grade:grade};
   });
   FLOWER_DEFAULTS=newDefs;
   localStorage.setItem('flowerDefaults',JSON.stringify(FLOWER_DEFAULTS));
@@ -2534,6 +2524,54 @@ function saveFlowerDefaults(){
   var msg=document.getElementById('flowerDefaultsSavedMsg');
   if(msg){msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2500);}
   setStatus('品目の規定値を保存しました','ok');
+}
+
+// ── 外等級キーワード UI ──────────────────────────────────────────
+function buildGaichiKeywordsUI(){
+  var container=document.getElementById('gaichiKeywordsContainer');
+  if(!container)return;
+  container.innerHTML='';
+  if(GAICHI_KEYWORDS.length===0){
+    var empty=document.createElement('span');
+    empty.style.cssText='font-size:12px;color:#aaa;padding:4px';
+    empty.textContent='（キーワードなし）';
+    container.appendChild(empty);
+    return;
+  }
+  GAICHI_KEYWORDS.forEach(function(kw,i){
+    var chip=document.createElement('span');
+    chip.style.cssText='display:inline-flex;align-items:center;gap:3px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:14px;padding:4px 10px;font-size:13px;margin:2px';
+    var txt=document.createTextNode(kw);
+    chip.appendChild(txt);
+    var btn=document.createElement('button');
+    btn.textContent='×';
+    btn.setAttribute('onclick','removeGaichiKeyword('+i+')');
+    btn.style.cssText='border:none;background:none;cursor:pointer;color:#795548;font-size:15px;line-height:1;padding:0 0 0 4px;font-weight:bold';
+    chip.appendChild(btn);
+    container.appendChild(chip);
+  });
+}
+function addGaichiKeyword(){
+  var inp=document.getElementById('gaichiKeywordInput');
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  if(GAICHI_KEYWORDS.indexOf(kw)<0){
+    GAICHI_KEYWORDS.push(kw);
+    buildGaichiKeywordsUI();
+  }
+  inp.value='';
+  inp.focus();
+}
+function removeGaichiKeyword(i){
+  GAICHI_KEYWORDS.splice(i,1);
+  buildGaichiKeywordsUI();
+}
+function saveGaichiKeywords(){
+  localStorage.setItem('gaichiKeywords',JSON.stringify(GAICHI_KEYWORDS));
+  var msg=document.getElementById('gaichiSavedMsg');
+  if(msg){msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2500);}
+  setStatus('外等級キーワードを保存しました','ok');
 }
 
 // ── 送信パネル表示 ──────────────────────────────────────────────
@@ -3661,6 +3699,7 @@ buildSettingsTab=function(){
   var cs=document.getElementById('gistConnStatus');
   if(cs&&_gistId){cs.textContent='✓ Gist設定済み';cs.style.color='#7a9e82';}
   buildFlowerDefaultsUI();
+  buildGaichiKeywordsUI();
 };
 </script>
 </body>
