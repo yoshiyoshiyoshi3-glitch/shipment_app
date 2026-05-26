@@ -447,10 +447,11 @@
     <div id="apiConfigStatus" style="display:none;font-size:12px;padding:6px 10px;border-radius:6px;margin-top:6px"></div>
   </div>
   <div class="card" style="margin-top:12px">
-    <div class="section-title">&#x1F4F1; スマホ・PC データ同期（GitHub Gist）</div>
+    <div class="section-title">&#x1F501; データ同期（GitHub Gist）</div>
     <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:10px;border:1px solid rgba(122,158,130,0.25)">
-      &#x2139; GitHubのGist（無料）を使ってPCとスマホのデータを同期します。<br>
-      <strong>PCで「送信」→ スマホで「受信」</strong>するだけでデータが共有されます。
+      &#x2139; PCもスマホも同じ操作で同期できます。<br>
+      <strong>このデバイスのデータを送信</strong> してから 別のデバイスで <strong>受信</strong> するだけです。<br>
+      品目・市場設定・出荷履歴・APIキーなどすべて同期されます。
     </div>
     <div class="settings-grid">
       <label class="settings-label">GitHubトークン</label>
@@ -464,16 +465,18 @@
       <span id="gistConnStatus" style="font-size:12px;color:var(--text-mid)"></span>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn-export" style="flex:1;font-size:13px;padding:10px 14px" onclick="manualPushToGist()">&#x2B06; PCからスマホへ送信</button>
-      <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="manualPullFromGist()">&#x2B07; スマホでデータを受信</button>
+      <button class="btn-export" style="flex:1;font-size:13px;padding:12px 14px;min-height:48px" onclick="manualPushToGist()">&#x2B06; このデバイスから送信</button>
+      <button class="btn-clear" style="flex:1;font-size:13px;padding:12px 14px;min-height:48px" onclick="manualPullFromGist()">&#x2B07; このデバイスで受信</button>
     </div>
     <div id="gistStatus" style="font-size:12px;color:var(--text-mid);margin-top:6px"></div>
     <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
-    <div style="font-size:12px;color:var(--text-mid);margin-bottom:6px">バックアップ（ファイル書き出し・読み込み）</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn-export" style="flex:1;font-size:13px;padding:10px 14px" onclick="exportData()">&#x1F4E5; ファイルに書き出す</button>
-      <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="importData()">&#x1F4E4; ファイルから読み込む</button>
-    </div>
+    <details>
+      <summary style="font-size:12px;color:var(--text-mid);cursor:pointer;user-select:none">&#x1F4C2; ファイルバックアップ（緊急時用）</summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn-export" style="flex:1;font-size:13px;padding:10px 14px" onclick="exportData()">&#x1F4E5; ファイルに書き出す</button>
+        <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="importData()">&#x1F4E4; ファイルから読み込む</button>
+      </div>
+    </details>
     <div id="syncStatus" style="font-size:12px;color:var(--text-mid);margin-top:8px"></div>
   </div>
   <div class="card" style="margin-top:12px">
@@ -822,7 +825,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1752';
+var APP_VERSION='20260526-1754';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2020,7 +2023,9 @@ function buildLabelPageHTML(allLabels){
     '.lbl-count{font-size:19pt;font-weight:900;text-align:center;color:#3a2e28;line-height:1.1}.lbl-stems{font-size:11pt;font-weight:700;color:#6e5a50;margin-left:4pt}'+
     '.lbl-note{font-size:9pt;color:#9a4820;font-weight:700;text-align:center;background:#fef8e8;border-radius:2mm;padding:1mm}.lbl-producer{font-size:8.5pt;color:#8b6458;font-weight:700;text-align:center;margin-top:1mm}.lbl-date{font-size:7.5pt;color:#b0a0a0;text-align:right}'+
     '.print-btn{display:block;margin:0 auto 16px;padding:12px 32px;background:#8b6458;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}';
-  return'<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>出荷ラベル</title><style>'+css+'</style></head><body><button class="print-btn no-print" onclick="window.print()">印刷する（A4・2列5段）</button>'+pageHTML+'</body></html>';
+  // ページ読み込み後に自動で印刷ダイアログを開く
+  var autoprint='<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>';
+  return'<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>出荷ラベル</title><style>'+css+'</style></head><body>'+autoprint+'<button class="print-btn no-print" onclick="window.print()">もう一度印刷する</button>'+pageHTML+'</body></html>';
 }
 // ── 出荷完了・履歴・統計 ──────────────────────────────────────────
 function completeShipment(){
