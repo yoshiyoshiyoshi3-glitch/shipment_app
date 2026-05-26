@@ -414,18 +414,26 @@
   <div class="card" style="margin-top:12px">
     <div class="section-title">&#x1F916; Claude API・メール設定（精算PDF解析用）</div>
     <div style="font-size:12px;color:var(--lavender);background:var(--lavender-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(152,120,168,0.25)">
-      &#x2139; 精算タブでPDF解析を使うには Claude APIキーが必要です。<br>
-      メール自動取得にはGmailのアプリパスワード（通常パスワード不可）が必要です。
+      &#x2139; 精算タブでPDF解析を使うには <strong>Claude APIキー</strong>が必要です。<br>
+      取得先：<a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--lavender)">console.anthropic.com/settings/keys</a>（要アカウント登録）<br>
+      形式は <code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">sk-ant-api03-...</code> のような長い文字列です。<br>
+      メール自動取得にはGmailの<strong>アプリパスワード</strong>（通常パスワード不可・16文字）が必要です。
     </div>
     <div class="settings-grid">
       <label class="settings-label">Claude APIキー</label>
-      <input type="password" id="cfg_claude_key" class="settings-input" placeholder="sk-ant-...">
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="password" id="cfg_claude_key" class="settings-input" placeholder="sk-ant-api03-..." style="flex:1;min-width:0">
+        <button onclick="(function(){var el=document.getElementById('cfg_claude_key');el.type=el.type==='password'?'text':'password';this.textContent=el.type==='password'?'👁':'🙈';}).call(this)" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:14px;flex-shrink:0" title="表示/非表示">&#x1F441;</button>
+      </div>
       <label class="settings-label">IMAPサーバー</label>
       <input type="text" id="cfg_imap_server" class="settings-input" placeholder="imap.gmail.com" value="imap.gmail.com">
       <label class="settings-label">メールアドレス</label>
       <input type="email" id="cfg_imap_email" class="settings-input" placeholder="your@gmail.com">
       <label class="settings-label">アプリパスワード</label>
-      <input type="password" id="cfg_imap_pass" class="settings-input" placeholder="Gmailアプリパスワード(16文字)">
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="password" id="cfg_imap_pass" class="settings-input" placeholder="Gmailアプリパスワード(16文字)" style="flex:1;min-width:0">
+        <button onclick="(function(){var el=document.getElementById('cfg_imap_pass');el.type=el.type==='password'?'text':'password';this.textContent=el.type==='password'?'👁':'🙈';}).call(this)" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:14px;flex-shrink:0" title="表示/非表示">&#x1F441;</button>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-export" onclick="saveApiConfig()">&#x1F4BE; API設定を保存</button>
