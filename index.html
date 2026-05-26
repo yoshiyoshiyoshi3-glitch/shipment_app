@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <title>出荷伝票作成</title>
 <style>
   /* ── SAKAI FLORIC MITSUSE ─ ボタニカル水彩テーマ ── */
@@ -220,7 +221,8 @@
   <button class="tab-btn" onclick="showTab('step2')">&#x2461; 市場振り分け</button>
   <button class="tab-btn" onclick="showTab('step3')">&#x2462; 伝票出力</button>
   <button class="tab-btn" onclick="showTab('step4')">&#x2463; 統計</button>
-  <button class="tab-btn" onclick="showTab('step5')">&#x2464; 設定</button>
+  <button class="tab-btn" onclick="showTab('step6')">&#x2464; 精算</button>
+  <button class="tab-btn" onclick="showTab('step5')">&#x2465; 設定</button>
 </div>
 <div id="step1" class="tab-panel active">
   <div class="quick-voice">
@@ -253,6 +255,11 @@
   <div class="actions">
     <button class="btn-primary" onclick="goToStep2()">&#x2461; 市場振り分けへ &#x2192;</button>
     <button class="btn-clear" onclick="clearAll()">&#x1F5D1; クリア</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn-label" id="speakAllBtn" onclick="speakAllItems()" style="flex:1;min-width:160px">&#x1F50A; 全品目読み上げ</button>
+    <button class="btn-clear" id="ttsPauseBtn" onclick="toggleTTSPause()" style="display:none;flex:1;min-height:48px;font-size:14px;font-weight:600">&#x23F8; 一時停止</button>
+    <button class="btn-clear" id="ttsStopBtn" onclick="stopTTS()" style="display:none;min-height:48px;padding:12px 16px;font-size:14px;font-weight:600">&#x23F9;</button>
   </div>
 </div>
 <div id="step2" class="tab-panel">
@@ -316,6 +323,42 @@
     <button class="btn-clear" style="margin-top:8px;font-size:11px;color:#c62828" onclick="clearHistory()">&#x1F5D1; 履歴をすべて削除</button>
   </div>
 </div>
+<div id="step6" class="tab-panel">
+  <div class="card">
+    <div class="section-title">&#x1F4E5; 精算PDF取得・解析</div>
+    <div class="actions" style="margin-bottom:10px">
+      <button class="btn-export" id="fetchMailBtn" onclick="fetchMailPdfs()" style="flex:1">&#x1F4E7; メールからPDF自動取得</button>
+      <label class="btn-primary" style="flex:1;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center">
+        &#x1F4C4; PDFをアップロード
+        <input type="file" id="pdfUploadInput" accept="application/pdf" multiple style="display:none" onchange="uploadPdfs(this.files)">
+      </label>
+    </div>
+    <div id="settlementFetchStatus" style="display:none;font-size:13px;padding:8px 10px;border-radius:6px;margin-bottom:8px"></div>
+  </div>
+  <div class="card">
+    <div class="section-title">&#x1F4CA; 精算データ一覧</div>
+    <div class="stat-filter">
+      <select id="sMarket" onchange="buildSettlementView()"><option value="">すべての市場</option></select>
+      <select id="sYear"   onchange="buildSettlementView()"><option value="">すべての年</option></select>
+      <select id="sFlower" onchange="buildSettlementView()"><option value="">すべての品目</option></select>
+    </div>
+    <div class="stat-wrap"><table class="stat-table" id="settlementTable">
+      <thead><tr><th>精算日</th><th>市場</th><th>品目</th><th>品種</th><th>等級</th><th>規格</th><th>箱数</th><th>単価</th><th>金額</th><th></th></tr></thead>
+      <tbody id="settlementBody"></tbody>
+    </table></div>
+    <div id="settlementTotal" style="text-align:right;font-weight:700;color:var(--primary);margin-top:6px;font-size:14px"></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div class="section-title">&#x1F4C8; 収益グラフ</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="tab-btn" id="gchart1btn" onclick="switchChart('market')"  style="flex:1;font-size:12px">市場別</button>
+      <button class="tab-btn" id="gchart2btn" onclick="switchChart('flower')"  style="flex:1;font-size:12px">品目別</button>
+      <button class="tab-btn" id="gchart3btn" onclick="switchChart('monthly')" style="flex:1;font-size:12px">月別推移</button>
+    </div>
+    <canvas id="settlementChart" height="220"></canvas>
+    <div id="chartNoData" style="text-align:center;color:#aaa;font-size:13px;padding:20px;display:none">データがありません</div>
+  </div>
+</div>
 <div id="step5" class="tab-panel">
   <div class="card">
     <div class="section-title">&#x1F464; 生産者情報</div>
@@ -360,6 +403,75 @@
         <button class="btn-clear" style="font-size:13px;padding:8px 14px;min-height:40px" onclick="resetDistEqual()">&#x21BA; 均等に戻す</button>
         <button class="btn-export" id="distSaveBtn" style="font-size:13px;padding:8px 16px;min-height:40px" onclick="saveDistSettings()">&#x1F4BE; 保存</button>
       </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F916; Claude API・メール設定（精算PDF解析用）</div>
+    <div style="font-size:12px;color:var(--lavender);background:var(--lavender-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(152,120,168,0.25)">
+      &#x2139; 精算タブでPDF解析を使うには Claude APIキーが必要です。<br>
+      メール自動取得にはGmailのアプリパスワード（通常パスワード不可）が必要です。
+    </div>
+    <div class="settings-grid">
+      <label class="settings-label">Claude APIキー</label>
+      <input type="password" id="cfg_claude_key" class="settings-input" placeholder="sk-ant-...">
+      <label class="settings-label">IMAPサーバー</label>
+      <input type="text" id="cfg_imap_server" class="settings-input" placeholder="imap.gmail.com" value="imap.gmail.com">
+      <label class="settings-label">メールアドレス</label>
+      <input type="email" id="cfg_imap_email" class="settings-input" placeholder="your@gmail.com">
+      <label class="settings-label">アプリパスワード</label>
+      <input type="password" id="cfg_imap_pass" class="settings-input" placeholder="Gmailアプリパスワード(16文字)">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn-export" onclick="saveApiConfig()">&#x1F4BE; API設定を保存</button>
+      <button class="btn-clear" id="testApiBtn" onclick="testApiConnection()">&#x1F50C; 接続テスト</button>
+    </div>
+    <div id="apiConfigStatus" style="display:none;font-size:12px;padding:6px 10px;border-radius:6px;margin-top:6px"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F4F1; スマホ・PC データ同期（GitHub Gist）</div>
+    <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:10px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; GitHubのGist（無料）を使ってPCとスマホのデータを同期します。<br>
+      <strong>PCで「送信」→ スマホで「受信」</strong>するだけでデータが共有されます。
+    </div>
+    <div class="settings-grid">
+      <label class="settings-label">GitHubトークン</label>
+      <div>
+        <input type="password" id="githubTokenInput" class="settings-input" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;box-sizing:border-box">
+        <div style="font-size:11px;color:var(--text-mid);margin-top:3px">&#x1F517; <a href="https://github.com/settings/tokens/new?scopes=gist&description=SakaiFloric" target="_blank" style="color:var(--sage)">こちらをクリックしてトークンを作成</a>（Gistにチェックして Generate token）</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" style="font-size:13px;padding:9px 14px" onclick="saveGistToken()">&#x1F4BE; 保存・接続テスト</button>
+      <span id="gistConnStatus" style="font-size:12px;color:var(--text-mid)"></span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn-export" style="flex:1;font-size:13px;padding:10px 14px" onclick="manualPushToGist()">&#x2B06; PCからスマホへ送信</button>
+      <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="manualPullFromGist()">&#x2B07; スマホでデータを受信</button>
+    </div>
+    <div id="gistStatus" style="font-size:12px;color:var(--text-mid);margin-top:6px"></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+    <div style="font-size:12px;color:var(--text-mid);margin-bottom:6px">バックアップ（ファイル書き出し・読み込み）</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-export" style="flex:1;font-size:13px;padding:10px 14px" onclick="exportData()">&#x1F4E5; ファイルに書き出す</button>
+      <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="importData()">&#x1F4E4; ファイルから読み込む</button>
+    </div>
+    <div id="syncStatus" style="font-size:12px;color:var(--text-mid);margin-top:8px"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F50A; VOICEVOX 読み上げ設定</div>
+    <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; <a href="https://voicevox.hiroshiba.jp/" target="_blank" style="color:var(--sage)">VOICEVOX</a>（無料）をインストール・起動すると自然な日本語音声で読み上げます。<br>
+      未起動の場合はブラウザ内蔵音声にフォールバックします。
+    </div>
+    <div class="settings-grid">
+      <label class="settings-label">VOICEVOX URL</label>
+      <input type="text" id="voicevoxUrlInput" class="settings-input" placeholder="http://localhost:50021" value="http://localhost:50021">
+      <label class="settings-label">話者</label>
+      <select id="voicevoxSpeakerSel" class="settings-input" style="padding:8px 10px"><option value="3">（接続すると一覧が表示されます）</option></select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" onclick="saveVoicevoxSettings()">&#x1F4BE; 保存・接続テスト</button>
+      <span id="voicevoxStatus" style="font-size:13px;color:var(--text-mid)">確認中…</span>
     </div>
   </div>
   <div class="card" style="margin-top:12px">
@@ -456,6 +568,7 @@ function saveMarketSettings(){
   settings.forEach(function(s,i){em['em_'+i]=s.email||oldEm['em_'+i]||'';});
   localStorage.setItem('emailSettings',JSON.stringify(em));
   alert('市場設定を保存しました。市場振り分けタブを再度開くと反映されます。');
+  pushToServer();
 }
 function loadProducerInfo(){
   try{return JSON.parse(localStorage.getItem('producerInfo'))||{};}
@@ -472,6 +585,7 @@ function saveProducerInfo(){
   var pnField=document.getElementById('producerName');
   if(pnField&&info.name&&!pnField.value)pnField.value=info.name;
   alert('生産者情報を保存しました。');
+  pushToServer();
 }
 function getProducerCode(marketName){
   var ms=loadMarketSettings();
@@ -488,7 +602,7 @@ function initMarkets(){
 }
 var GAICHI_KEYWORDS = ['曲がり','曲り','まがり','細い','ほそい','短い','みじかい','傷','きず','外','そと','規格外','軟い','やわらかい','柔らかい','なんい'];
 // 備考欄に入れるが等級を外にしないキーワード（GAICHIとは別扱い）
-var NOTE_ONLY_KEYWORDS = ['曲がり','曲り','まがり','細い','ほそい','短い','みじかい','傷','きず','軟い','やわらかい','柔らかい','なんい'];
+var NOTE_ONLY_KEYWORDS = ['短い','みじかい','傷','きず'];
 var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワリ':'80'};
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
 var RINGS_MASTER = ['3F↑','2F','SP'];
@@ -997,14 +1111,14 @@ function addItem(data){
       '<button class="delete-btn" onclick="deleteItem('+id+')">&times;</button>'+
     '</div>'+
     '<div class="item-fields">'+
-      '<div class="item-field"><label>品目名</label><div class="item-input-row"><input type="text" id="n_'+id+'" list="nlist_'+id+'" placeholder="品目" value="'+esc(data.name||'')+'"><datalist id="nlist_'+id+'">'+Object.keys(VARIETY_DATA).map(function(k){return'<option value="'+k+'">';}).join('')+'</datalist><button class="mic-sm" data-field="n_'+id+'" onclick="startFieldMic(\'n_'+id+'\')">&#x1F3A4;</button></div></div>'+
+      '<div class="item-field"><label>品目名</label><div class="item-input-row"><input type="text" id="n_'+id+'" list="nlist_'+id+'" placeholder="品目" value="'+esc(data.name||'')+'"><datalist id="nlist_'+id+'">'+Object.keys(VARIETY_DATA).map(function(k){return'<option value="'+k+'">';}).join('')+'</datalist></div></div>'+
       '<div class="item-field"><label>品種・色</label><div class="item-input-row"><input type="text" id="v_'+id+'" list="vlist_'+id+'" placeholder="品種" value="'+esc(data.variety||'')+'"><datalist id="vlist_'+id+'"></datalist><button class="mic-sm" data-field="v_'+id+'" onclick="startFieldMic(\'v_'+id+'\')">&#x1F3A4;</button></div></div>'+
-      '<div class="item-field"><label>等級</label><div class="item-input-row"><select id="g_'+id+'" onchange="onGradeChange('+id+')"><option>A</option><option>B</option><option>秀</option><option>優</option><option>良</option><option>外</option></select></div></div>'+
-      '<div class="item-field"><label>規格(cm)</label><div class="item-input-row"><input type="text" inputmode="numeric" id="s_'+id+'" placeholder="60" value="'+esc(data.size||'')+'"><button class="mic-sm" data-field="s_'+id+'" onclick="startFieldMic(\'s_'+id+'\')">&#x1F3A4;</button></div></div>'+
-      '<div class="item-field"><label>1箱あたりの本数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="c_'+id+'" placeholder="100（本）" value="'+esc(data.count||'')+'"><button class="mic-sm" data-field="c_'+id+'" onclick="startFieldMic(\'c_'+id+'\')">&#x1F3A4;</button></div></div>'+
-      '<div class="item-field"><label>箱数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="b_'+id+'" placeholder="5（箱）" value="'+esc(data.boxes||'')+'"><button class="mic-sm" data-field="b_'+id+'" onclick="startFieldMic(\'b_'+id+'\')">&#x1F3A4;</button></div></div>'+
       '<div class="item-field"><label>輪数</label><div class="item-input-row"><select id="rn_'+id+'"><option value="">--</option><option value="3F↑">3F↑</option><option value="2F">2F</option><option value="SP">SP</option></select></div></div>'+
-      '<div class="item-field full-col"><label>備考</label><div class="item-input-row"><input type="text" id="r_'+id+'" placeholder="曲がりなど" value="'+esc(data.note||'')+'"><button class="mic-sm" data-field="r_'+id+'" onclick="startFieldMic(\'r_'+id+'\')">&#x1F3A4;</button></div></div>'+
+      '<div class="item-field"><label>等級</label><div class="item-input-row"><select id="g_'+id+'" onchange="onGradeChange('+id+')"><option>A</option><option>B</option><option>秀</option><option>優</option><option>良</option><option>外</option></select></div></div>'+
+      '<div class="item-field"><label>規格(cm)</label><div class="item-input-row"><input type="text" inputmode="numeric" id="s_'+id+'" placeholder="60" value="'+esc(data.size||'')+'"></div></div>'+
+      '<div class="item-field"><label>1箱あたりの本数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="c_'+id+'" placeholder="100（本）" value="'+esc(data.count||'')+'"></div></div>'+
+      '<div class="item-field"><label>箱数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="b_'+id+'" placeholder="5（箱）" value="'+esc(data.boxes||'')+'"></div></div>'+
+      '<div class="item-field full-col"><label>備考</label><div class="item-input-row"><input type="text" id="r_'+id+'" placeholder="曲がりなど" value="'+esc(data.note||'')+'"></div></div>'+
     '</div>';
   container.appendChild(div);
   if(data.grade){var sel=document.getElementById('g_'+id);if(sel)sel.value=data.grade;}
@@ -1024,7 +1138,17 @@ function addItem(data){
     if(rs&&!rs.value&&DEFAULT_RINGS[nel.value]){rs.value=DEFAULT_RINGS[nel.value];}
     refreshSummary(id);
   });
-  ['v','r'].forEach(function(k){var el=document.getElementById(k+'_'+id);if(el)el.addEventListener('input',function(){refreshSummary(id);});});
+  var vvEl=document.getElementById('v_'+id);if(vvEl)vvEl.addEventListener('input',function(){refreshSummary(id);});
+  var rEl=document.getElementById('r_'+id);
+  if(rEl)rEl.addEventListener('input',function(){
+    refreshSummary(id);
+    var val=this.value;
+    var GAICHI_NOTE=['曲がり','曲り','まがり','細い','ほそい','軟い','やわらかい','柔らかい'];
+    if(GAICHI_NOTE.some(function(kw){return val.indexOf(kw)>=0;})){
+      var gs=document.getElementById('g_'+id);
+      if(gs&&gs.value!=='外'){gs.value='外';onGradeChange(id);}
+    }
+  });
   ['s','c','b'].forEach(function(k){var el=document.getElementById(k+'_'+id);if(el)el.addEventListener('change',function(){refreshSummary(id);});});
   // 数字だけ入力されたら単位を自動付与（本数→本 / 箱数→箱）
   var cEl=document.getElementById('c_'+id);
@@ -1113,11 +1237,12 @@ function startFieldMic(fieldId){
   var panels=document.querySelectorAll('.tab-panel');for(var i=0;i<panels.length;i++)panels[i].classList.remove('active');
   var btns=document.querySelectorAll('.tab-btn');for(var j=0;j<btns.length;j++)btns[j].classList.remove('active');
   document.getElementById(id).classList.add('active');
-  var idx=['step1','step2','step3','step4','step5'].indexOf(id); if(idx>=0)btns[idx].classList.add('active');
+  var idx=['step1','step2','step3','step4','step6','step5'].indexOf(id); if(idx>=0)btns[idx].classList.add('active');
   if(id==='step2'){var items=getItems().filter(function(it){return it.name;});var cids=items.map(function(i){return i.id;}).join(',');if(items.length&&cids!==lastBuiltItemIds)buildDistTable(items);buildDistPreview();}
   else if(id==='step3'){buildMarketSummaries();}
   else if(id==='step4'){buildStatView();}
   else if(id==='step5'){buildSettingsTab();}
+  else if(id==='step6'){buildSettlementView();loadApiConfigToForm();}
 }
 function goToStep2(){
   var items=getItems().filter(function(it){return it.name;});
@@ -1244,6 +1369,7 @@ function saveDistSettings(){
   var btn=document.getElementById('distSaveBtn');
   if(btn){btn.textContent='&#x2705; 保存しました';setTimeout(function(){btn.innerHTML='&#x1F4BE; 保存';},2000);}
   setStatus('振り分け設定を保存しました','ok');
+  pushToServer();
 }
 function buildDistPreview(){
   var container=document.getElementById('distPreviewCols');
@@ -1731,6 +1857,7 @@ function completeShipment(){
   try{localStorage.setItem('shipHistory',JSON.stringify(hist));}
   catch(e){alert('保存に失敗しました（容量不足の可能性）');return;}
   autoRegisterMaster(distData);
+  pushToServer();
   var b=document.getElementById('savedBanner');if(b){b.style.display='block';setTimeout(function(){b.style.display='none';},4000);}
   setStatus('出荷データを保存しました','ok');
   _lastShipment={distData:distData,date:date,producer:producer};
@@ -1883,6 +2010,7 @@ function saveMasterVarieties(){
   var custom=null;try{custom=JSON.parse(localStorage.getItem('customMaster'))||{};}catch(e){custom={};}
   custom[flower]=vars;
   try{localStorage.setItem('customMaster',JSON.stringify(custom));}catch(e){alert('保存失敗');return;}
+  pushToServer();
   var msg=document.getElementById('masterSavedMsg');
   if(msg){msg.style.display='block';setTimeout(function(){msg.style.display='none';},2000);}
 }
@@ -2133,6 +2261,628 @@ function shareViaLine(market,mi){
     items.map(function(it){return it.name+' '+it.variety+' '+it.grade+' '+it.marketBoxes[mi]+'箱';}).join('\n');
   window.open('https://line.me/R/share?text='+encodeURIComponent(text),'_blank');
 }
+
+// ── TTS（読み上げ）─────────────────────────────────────────────────────
+var _ttsVoice=null,_ttsSpeaking=false,_ttsPaused=false;
+var _voicevoxUrl='http://localhost:50021';
+var _voicevoxSpeaker=3;
+var _voicevoxAvailable=false;
+var _currentAudio=null;
+// localStorage から設定復元
+(function(){
+  var u=localStorage.getItem('voicevoxUrl'); if(u)_voicevoxUrl=u;
+  var s=parseInt(localStorage.getItem('voicevoxSpeaker')); if(!isNaN(s))_voicevoxSpeaker=s;
+})();
+
+function initTTSVoice(){
+  if(!window.speechSynthesis)return;
+  var load=function(){
+    var voices=window.speechSynthesis.getVoices();
+    var jaVoices=voices.filter(function(v){return v.lang.startsWith('ja');});
+    var prio=['Natural','Nanami','Sayaka','Haruka','Ayumi','Google 日本語'];
+    for(var p=0;p<prio.length;p++){
+      var found=null;
+      for(var vi=0;vi<jaVoices.length;vi++){if(jaVoices[vi].name.indexOf(prio[p])>=0){found=jaVoices[vi];break;}}
+      if(found){_ttsVoice=found;return;}
+    }
+    for(var fi=0;fi<jaVoices.length;fi++){if(/female|woman|girl/i.test(jaVoices[fi].name)){_ttsVoice=jaVoices[fi];return;}}
+    _ttsVoice=jaVoices[0]||null;
+  };
+  if(window.speechSynthesis.getVoices().length)load();
+  window.speechSynthesis.onvoiceschanged=load;
+}
+
+function checkVoicevox(cb){
+  var xhr=new XMLHttpRequest();
+  xhr.timeout=2000;
+  xhr.onload=function(){
+    _voicevoxAvailable=true;
+    var el=document.getElementById('voicevoxStatus');
+    if(el){el.textContent='✓ 接続中';el.style.color='#7a9e82';}
+    loadVoicevoxSpeakers();
+    if(cb)cb(true);
+  };
+  xhr.onerror=xhr.ontimeout=function(){
+    _voicevoxAvailable=false;
+    var el=document.getElementById('voicevoxStatus');
+    if(el){el.textContent='✗ 未起動';el.style.color='#d45050';}
+    if(cb)cb(false);
+  };
+  try{xhr.open('GET',_voicevoxUrl+'/version');xhr.send();}catch(e){_voicevoxAvailable=false;}
+}
+
+function loadVoicevoxSpeakers(){
+  fetch(_voicevoxUrl+'/speakers')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var sel=document.getElementById('voicevoxSpeakerSel');
+      if(!sel)return;
+      sel.innerHTML='';
+      data.forEach(function(sp){
+        sp.styles.forEach(function(st){
+          var opt=document.createElement('option');
+          opt.value=st.id;
+          opt.textContent=sp.name+'（'+st.name+'）';
+          if(st.id===_voicevoxSpeaker)opt.selected=true;
+          sel.appendChild(opt);
+        });
+      });
+    }).catch(function(){});
+}
+
+function saveVoicevoxSettings(){
+  var urlEl=document.getElementById('voicevoxUrlInput');
+  var spEl=document.getElementById('voicevoxSpeakerSel');
+  if(urlEl){_voicevoxUrl=urlEl.value.trim()||'http://localhost:50021';localStorage.setItem('voicevoxUrl',_voicevoxUrl);}
+  if(spEl&&spEl.value){_voicevoxSpeaker=parseInt(spEl.value);localStorage.setItem('voicevoxSpeaker',String(_voicevoxSpeaker));}
+  checkVoicevox(function(ok){setStatus(ok?'VOICEVOX設定を保存しました':'VOICEVOXに接続できません（アプリが起動しているか確認してください）',ok?'ok':'error');});
+}
+
+function ttsFormat(t){
+  return String(t||'')
+    .replace(/3F↑/g,'3エフ以上').replace(/2F/g,'2エフ').replace(/SP/g,'スペシャル')
+    .replace(/(\d+)本/g,'$1本').replace(/(\d+)箱/g,'$1箱');
+}
+function buildItemSpeechParts(it){
+  var parts=[];
+  if(it.variety)parts.push(ttsFormat(it.variety));
+  if(it.count)parts.push(ttsFormat(it.count));
+  if(it.boxes)parts.push(ttsFormat(it.boxes));
+  var defRings=DEFAULT_RINGS[it.name]||'';
+  if(it.rings&&it.rings!==defRings)parts.push(ttsFormat(it.rings));
+  if(it.grade&&it.grade!=='A')parts.push('等級'+it.grade);
+  var defSize=String(DEFAULT_SIZE[it.name]||'');
+  var sNum=String(it.size||'').replace(/[^\d]/g,'');
+  if(sNum&&sNum!==defSize)parts.push(sNum+'センチ');
+  if(it.note)parts.push(it.note);
+  return parts;
+}
+
+function voicevoxSynth(text){
+  return fetch(_voicevoxUrl+'/audio_query?text='+encodeURIComponent(text)+'&speaker='+_voicevoxSpeaker,{method:'POST'})
+    .then(function(r){if(!r.ok)throw new Error('audio_query '+r.status);return r.json();})
+    .then(function(q){
+      return fetch(_voicevoxUrl+'/synthesis?speaker='+_voicevoxSpeaker,{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(q)
+      });
+    })
+    .then(function(r){if(!r.ok)throw new Error('synthesis '+r.status);return r.blob();});
+}
+
+function _speakWebTTS(text){
+  if(!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  var utt=new SpeechSynthesisUtterance(text);
+  utt.lang='ja-JP'; utt.rate=0.95; utt.pitch=1.15;
+  if(_ttsVoice)utt.voice=_ttsVoice;
+  utt.onstart=function(){_ttsSpeaking=true;_ttsPaused=false;updateTTSUI();};
+  utt.onend=function(){_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
+  utt.onerror=function(){_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
+  window.speechSynthesis.speak(utt);
+}
+
+function speakAllItems(){
+  var items=getItems().filter(function(it){return it.name;});
+  if(!items.length){setStatus('品目がありません','error');return;}
+  stopTTS();
+  var segments=[];
+  items.forEach(function(it,idx){
+    var parts=buildItemSpeechParts(it);
+    if(parts.length)segments.push('品目'+(idx+1)+'、'+parts.join('、'));
+  });
+  segments.push('以上、'+items.length+'品目です。');
+  var fullText=segments.join('。');
+  _ttsSpeaking=true;_ttsPaused=false;updateTTSUI();
+  if(_voicevoxAvailable){
+    voicevoxSynth(fullText)
+      .then(function(blob){
+        var url=URL.createObjectURL(blob);
+        _currentAudio=new Audio(url);
+        _currentAudio.onended=function(){URL.revokeObjectURL(url);_currentAudio=null;_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
+        _currentAudio.onerror=function(){_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
+        _currentAudio.play().catch(function(){_ttsSpeaking=false;updateTTSUI();});
+      })
+      .catch(function(){
+        _voicevoxAvailable=false;
+        setStatus('VOICEVOX接続失敗、内蔵音声で読み上げます','error');
+        _speakWebTTS(fullText);
+      });
+  } else {
+    _speakWebTTS(fullText);
+  }
+}
+function toggleTTSPause(){
+  if(_currentAudio){
+    if(_ttsPaused){_currentAudio.play();_ttsPaused=false;}
+    else{_currentAudio.pause();_ttsPaused=true;}
+    updateTTSUI();
+  } else if(window.speechSynthesis){
+    if(_ttsPaused){window.speechSynthesis.resume();_ttsPaused=false;}
+    else{window.speechSynthesis.pause();_ttsPaused=true;}
+    updateTTSUI();
+  }
+}
+function stopTTS(){
+  if(_currentAudio){_currentAudio.pause();_currentAudio=null;}
+  if(window.speechSynthesis)window.speechSynthesis.cancel();
+  _ttsSpeaking=false;_ttsPaused=false;updateTTSUI();
+}
+function updateTTSUI(){
+  var pb=document.getElementById('ttsPauseBtn'),sb=document.getElementById('ttsStopBtn'),ab=document.getElementById('speakAllBtn');
+  if(pb)pb.style.display=_ttsSpeaking?'inline-flex':'none';
+  if(sb)sb.style.display=_ttsSpeaking?'inline-flex':'none';
+  if(pb&&_ttsSpeaking)pb.textContent=_ttsPaused?'▶ 再開':'⏸ 一時停止';
+  if(ab)ab.textContent=_ttsSpeaking?'🔊 読み上げ中…':'🔊 全品目読み上げ';
+}
+initTTSVoice();
+checkVoicevox();
+
+// ══════════════════════════════════════════════════════
+// 精算機能（Claude API + IMAP）
+// ══════════════════════════════════════════════════════
+var API_BASE = '';  // 同一オリジン
+var _settlementChart = null;
+var _currentChartType = 'market';
+
+// ── API設定フォーム ──────────────────────────────────
+function loadApiConfigToForm(){
+  fetch(API_BASE+'/api/config').then(function(r){return r.json();}).then(function(cfg){
+    var f=function(id,val){var el=document.getElementById(id);if(el&&val)el.value=val;};
+    f('cfg_claude_key', cfg.claude_api_key||'');
+    f('cfg_imap_server', cfg.imap_server||'imap.gmail.com');
+    f('cfg_imap_email',  cfg.imap_email||'');
+    f('cfg_imap_pass',   cfg.imap_password||'');
+  }).catch(function(){});  // APIサーバー未起動時は無視
+}
+function saveApiConfig(){
+  var cfg={
+    claude_api_key: (document.getElementById('cfg_claude_key')||{}).value||'',
+    imap_server:    (document.getElementById('cfg_imap_server')||{}).value||'imap.gmail.com',
+    imap_email:     (document.getElementById('cfg_imap_email')||{}).value||'',
+    imap_password:  (document.getElementById('cfg_imap_pass')||{}).value||''
+  };
+  fetch(API_BASE+'/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
+    .then(function(){showApiStatus('保存しました','ok');})
+    .catch(function(){showApiStatus('保存失敗。サーバーが起動しているか確認してください','error');});
+}
+function testApiConnection(){
+  showApiStatus('接続確認中…','info');
+  fetch(API_BASE+'/api/health').then(function(r){return r.json();}).then(function(h){
+    var msg='サーバー接続OK';
+    if(!h.has_claude_key) msg+=' / ⚠ Claude APIキー未設定';
+    else msg+=' / Claude APIキー✓';
+    if(!h.has_imap) msg+=' / ⚠ IMAP未設定';
+    else msg+=' / IMAP設定✓';
+    showApiStatus(msg,'ok');
+  }).catch(function(){
+    showApiStatus('サーバーに接続できません。アプリ起動API.bat でサーバーを起動してください','error');
+  });
+}
+function showApiStatus(msg,type){
+  var el=document.getElementById('apiConfigStatus');
+  if(!el)return;
+  el.style.display='block';
+  el.textContent=msg;
+  el.style.background=type==='ok'?'#eaf2ec':type==='error'?'#fdf0f0':'#f0ecf8';
+  el.style.color=type==='ok'?'#4a7a52':type==='error'?'#9a3838':'#7858a0';
+}
+
+// ── PDFアップロード解析 ─────────────────────────────
+function uploadPdfs(files){
+  if(!files||!files.length)return;
+  var total=files.length, done=0, results=[];
+  showFetchStatus('解析中… 0/'+total,'info');
+  Array.prototype.forEach.call(files,function(file){
+    var fd=new FormData();
+    fd.append('file',file);
+    fetch(API_BASE+'/api/analyze-pdf',{method:'POST',body:fd})
+      .then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.detail||r.status);});return r.json();})
+      .then(function(data){results.push(data);})
+      .catch(function(e){showFetchStatus('エラー: '+e.message,'error');})
+      .finally(function(){
+        done++;
+        showFetchStatus('解析中… '+done+'/'+total,'info');
+        if(done===total){
+          if(results.length){
+            bulkSaveSettlements(results,function(){
+              showFetchStatus(results.length+'件の精算データを解析・保存しました','ok');
+              buildSettlementView();
+            });
+          }
+        }
+      });
+  });
+}
+
+// ── メールからPDF自動取得 ────────────────────────────
+function fetchMailPdfs(){
+  var btn=document.getElementById('fetchMailBtn');
+  if(btn){btn.disabled=true;btn.textContent='取得中…';}
+  showFetchStatus('メールを確認中…','info');
+  fetch(API_BASE+'/api/emails/fetch',{method:'POST'})
+    .then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.detail||r.status);});return r.json();})
+    .then(function(res){
+      if(res.fetched&&res.fetched.length){
+        bulkSaveSettlements(res.fetched,function(){
+          var msg=res.fetched.length+'件のPDFを取得・解析しました';
+          if(res.errors&&res.errors.length)msg+=' (エラー'+res.errors.length+'件)';
+          showFetchStatus(msg,'ok');
+          buildSettlementView();
+        });
+      } else {
+        var msg='新しいPDFメールは見つかりませんでした';
+        if(res.errors&&res.errors.length)msg+=' (エラー: '+res.errors[0]+')';
+        showFetchStatus(msg,'info');
+      }
+    })
+    .catch(function(e){showFetchStatus('エラー: '+e.message,'error');})
+    .finally(function(){if(btn){btn.disabled=false;btn.textContent='📧 メールからPDF自動取得';}});
+}
+function showFetchStatus(msg,type){
+  var el=document.getElementById('settlementFetchStatus');
+  if(!el)return;
+  el.style.display='block'; el.textContent=msg;
+  el.style.background=type==='ok'?'#eaf2ec':type==='error'?'#fdf0f0':'#f0ecf8';
+  el.style.color=type==='ok'?'#4a7a52':type==='error'?'#9a3838':'#7858a0';
+  el.style.border='1px solid '+(type==='ok'?'#7a9e82':type==='error'?'#c87878':'#c8b0e0');
+}
+
+// ── 精算データ保存・読込 ─────────────────────────────
+function bulkSaveSettlements(list,cb){
+  fetch(API_BASE+'/api/settlements/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(list)})
+    .then(function(){if(cb)cb();})
+    .catch(function(e){showFetchStatus('保存エラー: '+e.message,'error');});
+}
+function deleteSettlement(id){
+  if(!confirm('この精算データを削除しますか？'))return;
+  fetch(API_BASE+'/api/settlements/'+id,{method:'DELETE'})
+    .then(function(){buildSettlementView();})
+    .catch(function(e){alert('削除エラー: '+e.message);});
+}
+
+// ── 精算一覧ビュー ────────────────────────────────────
+function buildSettlementView(){
+  fetch(API_BASE+'/api/settlements').then(function(r){return r.json();}).then(function(data){
+    renderSettlements(data);
+  }).catch(function(){
+    // APIサーバー未起動時はローカルストレージフォールバック
+    renderSettlements([]);
+  });
+}
+function renderSettlements(settlements){
+  // フィルタオプション更新
+  var markets={},years={},flowers={};
+  settlements.forEach(function(s){
+    if(s.market)markets[s.market]=true;
+    if(s.settlement_date)years[s.settlement_date.slice(0,4)]=true;
+    (s.items||[]).forEach(function(it){if(it.flower)flowers[it.flower]=true;});
+  });
+  updateSelect('sMarket',Object.keys(markets).sort(),'すべての市場');
+  updateSelect('sYear',  Object.keys(years).sort().reverse().map(function(y){return{val:y,label:y+'年'};}), 'すべての年');
+  updateSelect('sFlower',Object.keys(flowers).sort(),'すべての品目');
+
+  var fMkt  =(document.getElementById('sMarket')||{}).value||'';
+  var fYear =(document.getElementById('sYear')||{}).value||'';
+  var fFlower=(document.getElementById('sFlower')||{}).value||'';
+
+  // フラット行に展開
+  var rows=[];
+  settlements.forEach(function(s){
+    if(fMkt  && s.market!==fMkt)return;
+    if(fYear && (!s.settlement_date||s.settlement_date.slice(0,4)!==fYear))return;
+    (s.items||[]).forEach(function(it){
+      if(fFlower && it.flower!==fFlower)return;
+      rows.push({sid:s.id,date:s.settlement_date||'',market:s.market||'',
+        flower:it.flower||'',variety:it.variety||'',grade:it.grade||'',
+        size:it.size||'',boxes:it.boxes||0,unit_price:it.unit_price,amount:it.amount});
+    });
+  });
+
+  var tbody=document.getElementById('settlementBody');
+  if(!tbody)return;
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#aaa;padding:16px">データがありません。PDFをアップロードするか、メールから取得してください。</td></tr>';
+    document.getElementById('settlementTotal').textContent='';
+  } else {
+    var total=rows.reduce(function(a,r){return a+(r.amount||0);},0);
+    tbody.innerHTML=rows.map(function(r){
+      var up=r.unit_price!=null?r.unit_price.toLocaleString()+'円':'－';
+      var am=r.amount!=null?r.amount.toLocaleString()+'円':'－';
+      return'<tr>'+
+        '<td style="white-space:nowrap">'+r.date+'</td>'+
+        '<td style="font-size:11px">'+r.market.replace('花市場','')+'</td>'+
+        '<td>'+r.flower+'</td>'+
+        '<td style="font-size:11px">'+r.variety+'</td>'+
+        '<td style="text-align:center"><span class="badge '+(r.grade==='外'?'ext':'')+'">'+r.grade+'</span></td>'+
+        '<td style="text-align:center">'+(r.size?r.size+'cm':'－')+'</td>'+
+        '<td style="text-align:center">'+r.boxes+'箱</td>'+
+        '<td style="text-align:right">'+up+'</td>'+
+        '<td style="text-align:right;font-weight:700;color:var(--primary)">'+am+'</td>'+
+        '<td><button onclick="deleteSettlement(\''+r.sid+'\')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px" title="削除">×</button></td>'+
+      '</tr>';
+    }).join('');
+    document.getElementById('settlementTotal').textContent='合計金額: '+total.toLocaleString()+'円';
+  }
+
+  // グラフ更新
+  drawChart(_currentChartType, settlements);
+}
+function updateSelect(id,opts,placeholder){
+  var sel=document.getElementById(id); if(!sel)return;
+  var prev=sel.value;
+  sel.innerHTML='<option value="">'+placeholder+'</option>';
+  opts.forEach(function(o){
+    var val=typeof o==='object'?o.val:o, label=typeof o==='object'?o.label:o;
+    var op=document.createElement('option'); op.value=val; op.textContent=label; sel.appendChild(op);
+  });
+  sel.value=prev;
+}
+
+// ── グラフ描画 ────────────────────────────────────────
+var CHART_COLORS=['#b87888','#7a9e82','#9878a8','#c4986a','#7890b8','#a89860'];
+function switchChart(type){
+  _currentChartType=type;
+  ['market','flower','monthly'].forEach(function(t){
+    var b=document.getElementById('gchart'+({'market':1,'flower':2,'monthly':3}[t])+'btn');
+    if(b)b.classList.toggle('active',t===type);
+  });
+  fetch(API_BASE+'/api/settlements').then(function(r){return r.json();}).then(function(data){
+    drawChart(type,data);
+  }).catch(function(){drawChart(type,[]);});
+}
+function drawChart(type,settlements){
+  var canvas=document.getElementById('settlementChart');
+  var noData=document.getElementById('chartNoData');
+  if(!canvas)return;
+  if(_settlementChart){_settlementChart.destroy();_settlementChart=null;}
+
+  var agg={};
+  settlements.forEach(function(s){
+    (s.items||[]).forEach(function(it){
+      var key;
+      if(type==='market') key=s.market||'不明';
+      else if(type==='flower') key=it.flower||'不明';
+      else key=(s.settlement_date||'').slice(0,7);  // YYYY-MM
+      if(!agg[key])agg[key]=0;
+      agg[key]+=(it.amount||0);
+    });
+  });
+
+  var labels=Object.keys(agg).sort();
+  if(!labels.length){
+    canvas.style.display='none'; if(noData)noData.style.display='block'; return;
+  }
+  canvas.style.display='block'; if(noData)noData.style.display='none';
+
+  var values=labels.map(function(l){return agg[l];});
+  var isLine=type==='monthly';
+  var bgColors=labels.map(function(_,i){return CHART_COLORS[i%CHART_COLORS.length]+(isLine?'33':'cc');});
+
+  _settlementChart=new Chart(canvas,{
+    type: isLine?'line':'bar',
+    data:{
+      labels: labels.map(function(l){return l.replace('花市場','');}).map(function(l){return type==='monthly'?l.replace('-','年')+'月':l;}),
+      datasets:[{
+        label:'金額（円）',
+        data:values,
+        backgroundColor: isLine?'rgba(184,120,136,0.15)':bgColors,
+        borderColor: isLine?'#b87888':bgColors.map(function(c){return c.slice(0,7);}),
+        borderWidth:2,
+        fill:isLine,
+        tension:0.35,
+        pointBackgroundColor:'#b87888'
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+ctx.parsed.y.toLocaleString()+'円';}}}},
+      scales:{y:{ticks:{callback:function(v){return v>=10000?(v/10000).toFixed(0)+'万':v;}}}}
+    }
+  });
+}
+// ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay'];
+var _gistToken='';
+var _gistId='';
+
+(function(){
+  _gistToken=localStorage.getItem('githubToken')||'';
+  _gistId=localStorage.getItem('gistId')||'';
+})();
+
+function _getSyncData(){
+  var data={};
+  SYNC_KEYS.forEach(function(k){
+    var v=localStorage.getItem(k);
+    if(v){try{data[k]=JSON.parse(v);}catch(e){data[k]=v;}}
+  });
+  data._updated=new Date().toISOString();
+  return data;
+}
+
+function _applyGistData(data){
+  var updated=false;
+  SYNC_KEYS.forEach(function(k){
+    if(data[k]!==undefined){
+      var val=typeof data[k]==='string'?data[k]:JSON.stringify(data[k]);
+      if(localStorage.getItem(k)!==val){localStorage.setItem(k,val);updated=true;}
+    }
+  });
+  return updated;
+}
+
+function _setGistStatus(msg,color){
+  var el=document.getElementById('gistStatus');
+  if(el){el.textContent=msg;el.style.color=color||'var(--text-mid)';}
+}
+
+function saveGistToken(){
+  var el=document.getElementById('githubTokenInput');
+  if(!el||!el.value.trim()){alert('トークンを入力してください');return;}
+  _gistToken=el.value.trim();
+  localStorage.setItem('githubToken',_gistToken);
+  var st=document.getElementById('gistConnStatus');
+  if(st){st.textContent='確認中…';st.style.color='var(--text-mid)';}
+  // 接続テスト
+  fetch('https://api.github.com/user',{headers:{'Authorization':'token '+_gistToken}})
+    .then(function(r){return r.json();})
+    .then(function(u){
+      if(u.login){
+        if(st){st.textContent='✓ 接続OK（'+u.login+'）';st.style.color='#7a9e82';}
+        _setGistStatus('トークンを保存しました','#7a9e82');
+      } else {
+        if(st){st.textContent='✗ トークンが無効です';st.style.color='#d45050';}
+      }
+    })
+    .catch(function(){
+      if(st){st.textContent='✗ 接続失敗';st.style.color='#d45050';}
+    });
+}
+
+function _pushToGistInternal(showMsg){
+  if(!_gistToken){return Promise.resolve();}
+  var content=JSON.stringify(_getSyncData(),null,2);
+  var body={description:'SakaiFloric App Data',public:false,
+    files:{'sakai_floric_data.json':{content:content}}};
+  var url=_gistId?'https://api.github.com/gists/'+_gistId:'https://api.github.com/gists';
+  var method=_gistId?'PATCH':'POST';
+  return fetch(url,{method:method,
+    headers:{'Authorization':'token '+_gistToken,'Content-Type':'application/json'},
+    body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(g){
+      if(g.id){_gistId=g.id;localStorage.setItem('gistId',_gistId);}
+      if(showMsg)_setGistStatus('✓ データを送信しました（'+new Date().toLocaleTimeString('ja-JP')+'）','#7a9e82');
+    })
+    .catch(function(e){
+      if(showMsg)_setGistStatus('✗ 送信失敗: '+e.message,'#d45050');
+    });
+}
+
+function _pullFromGistInternal(showMsg){
+  if(!_gistId){
+    if(showMsg)_setGistStatus('Gist IDが未設定です。PCで「送信」を先に実行してください','#d45050');
+    return Promise.resolve();
+  }
+  var headers=_gistToken?{'Authorization':'token '+_gistToken}:{};
+  return fetch('https://api.github.com/gists/'+_gistId,{headers:headers})
+    .then(function(r){return r.json();})
+    .then(function(g){
+      var f=g.files&&g.files['sakai_floric_data.json'];
+      if(!f){if(showMsg)_setGistStatus('データが見つかりません','#d45050');return;}
+      var data=JSON.parse(f.content);
+      var updated=_applyGistData(data);
+      if(showMsg){
+        _setGistStatus('✓ データを受信しました。ページを再読み込みします…','#7a9e82');
+        if(updated)setTimeout(function(){location.reload();},1500);
+        else _setGistStatus('✓ すでに最新データです','#7a9e82');
+      }
+    })
+    .catch(function(e){
+      if(showMsg)_setGistStatus('✗ 受信失敗: '+e.message,'#d45050');
+    });
+}
+
+function manualPushToGist(){
+  if(!_gistToken){alert('GitHubトークンを設定してください（⑥設定タブ）');return;}
+  _setGistStatus('送信中…','var(--text-mid)');
+  _pushToGistInternal(true);
+}
+
+function manualPullFromGist(){
+  if(!_gistToken&&!_gistId){alert('GitHubトークンを設定してください（⑥設定タブ）');return;}
+  _setGistStatus('受信中…','var(--text-mid)');
+  _pullFromGistInternal(true);
+}
+
+// 保存時に自動でGistへ送信
+function pushToServer(){
+  _pushToGistInternal(false);
+}
+
+function exportData(){
+  var data={};
+  SYNC_KEYS.forEach(function(k){
+    var v=localStorage.getItem(k);
+    if(v){try{data[k]=JSON.parse(v);}catch(e){data[k]=v;}}
+  });
+  data._exported=new Date().toISOString();
+  var json=JSON.stringify(data,null,2);
+  var blob=new Blob([json],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  var d=new Date();
+  var ds=d.getFullYear()+''+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+  a.download='sakai_floric_'+ds+'.json';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  var el=document.getElementById('syncStatus');
+  if(el)el.textContent='✓ ファイルを書き出しました（'+a.download+'）';
+  setStatus('データを書き出しました。LINEやメールで送って読み込んでください','ok');
+}
+
+function importData(){
+  var input=document.createElement('input');
+  input.type='file';input.accept='.json,application/json';
+  input.onchange=function(e){
+    var file=e.target.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var data=JSON.parse(ev.target.result);
+        var count=0;
+        SYNC_KEYS.forEach(function(k){
+          if(data[k]!==undefined){
+            localStorage.setItem(k,typeof data[k]==='string'?data[k]:JSON.stringify(data[k]));
+            count++;
+          }
+        });
+        setStatus(count+'件のデータを読み込みました。ページを再読み込みします…','ok');
+        setTimeout(function(){location.reload();},1200);
+      }catch(ex){
+        setStatus('ファイルの読み込みに失敗しました（正しいファイルか確認してください）','error');
+      }
+    };
+    reader.readAsText(file);
+  };
+  document.body.appendChild(input);input.click();
+  document.body.removeChild(input);
+}
+
+// 設定タブが開かれたときも読み込む（buildSettingsTab から呼ぶ）
+var _origBuildSettings=buildSettingsTab;
+buildSettingsTab=function(){
+  _origBuildSettings();loadApiConfigToForm();
+  var ui=document.getElementById('voicevoxUrlInput');
+  if(ui)ui.value=_voicevoxUrl;
+  checkVoicevox();
+  // GitHubトークン表示
+  var ti=document.getElementById('githubTokenInput');
+  if(ti&&_gistToken)ti.value=_gistToken;
+  var cs=document.getElementById('gistConnStatus');
+  if(cs&&_gistId){cs.textContent='✓ Gist設定済み';cs.style.color='#7a9e82';}
+};
 </script>
 </body>
 </html>
