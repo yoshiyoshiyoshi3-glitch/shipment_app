@@ -219,6 +219,11 @@
   <button class="btn-install" onclick="installApp()">&#x2B07; インストール</button>
   <button onclick="document.getElementById('installBar').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">&#x2715;</button>
 </div>
+<div id="updateBar" style="display:none;background:linear-gradient(90deg,#e8f5e9,#f1f8e9);border-bottom:2px solid #66bb6a;padding:8px 14px;font-size:13px;color:#2e7d32;display:none;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="flex:1">&#x1F195; <strong>新しいバージョンがあります！</strong> <span id="updateNote" style="font-size:11px;color:#558b2f"></span></span>
+  <button onclick="doUpdate()" style="background:#43a047;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:13px;cursor:pointer;font-weight:600">🔄 今すぐ更新</button>
+  <button onclick="document.getElementById('updateBar').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#558b2f">&#x2715;</button>
+</div>
 <div id="noSupport" class="no-support" style="display:none;">&#x26A0; このブラウザでは音声認識に対応していません。手動入力をご使用ください。</div>
 <div id="statusBar" class="status-bar">準備完了 — ボタンを押して話しかけてください</div>
 <div id="micHelpBox" style="display:none;background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 14px;font-size:13px;color:#5d4037;line-height:1.7;margin-bottom:8px"><button onclick="document.getElementById('micHelpBox').style.display='none'" style="float:right;background:none;border:none;font-size:16px;cursor:pointer;color:#888">✕</button></div>
@@ -470,6 +475,18 @@
       <button class="btn-clear" style="flex:1;font-size:13px;padding:10px 14px;min-height:44px" onclick="importData()">&#x1F4E4; ファイルから読み込む</button>
     </div>
     <div id="syncStatus" style="font-size:12px;color:var(--text-mid);margin-top:8px"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F504; アプリの更新</div>
+    <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:10px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; 新しいバージョンが公開されると自動的に通知します。手動確認もできます。<br>
+      現在のバージョン：<strong id="currentVersionLabel"></strong>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" style="font-size:13px;padding:10px 16px" onclick="checkAppUpdate(true)">&#x1F50D; アップデートを確認</button>
+      <button class="btn-clear" style="font-size:13px;padding:10px 16px" onclick="doUpdate()">&#x1F504; 今すぐ再読み込み</button>
+    </div>
+    <div id="updateCheckStatus" style="font-size:12px;color:var(--text-mid);margin-top:8px"></div>
   </div>
   <div class="card" style="margin-top:12px">
     <div class="section-title">&#x1F50A; VOICEVOX 読み上げ設定</div>
@@ -798,6 +815,8 @@ var lastUsedName='',pendingText='',parseTimer=null,PARSE_DELAY=1200;
 try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)PARSE_DELAY=_pd;}catch(e){}
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
+// ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
+var APP_VERSION='20260526-1637';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -818,6 +837,45 @@ function installApp(){
     });
   }
 }
+
+// ── アップデートチェック ──────────────────────────────────────────────
+function checkAppUpdate(showOk){
+  var statusEl=document.getElementById('updateCheckStatus');
+  if(statusEl)statusEl.textContent='確認中…';
+  fetch('./version.json?_='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var latest=data.v||'';
+      var note=data.note||'';
+      if(statusEl)statusEl.textContent='';
+      if(latest&&latest!==APP_VERSION){
+        // 新バージョンあり → バナー表示
+        var bar=document.getElementById('updateBar');
+        var noteEl=document.getElementById('updateNote');
+        if(noteEl)noteEl.textContent=note?' （'+note+'）':'';
+        if(bar){bar.style.display='flex';}
+        if(statusEl)statusEl.innerHTML='&#x1F195; 新しいバージョンがあります（'+latest+'）';
+      } else {
+        if(showOk&&statusEl)statusEl.textContent='✓ 最新バージョンです（'+APP_VERSION+'）';
+      }
+    })
+    .catch(function(){
+      if(statusEl)statusEl.textContent='確認できませんでした（オフライン？）';
+    });
+}
+function doUpdate(){
+  // SW キャッシュをすべて削除してリロード
+  var reload=function(){location.reload(true);};
+  if('caches' in window){
+    caches.keys().then(function(names){
+      return Promise.all(names.map(function(n){return caches.delete(n);}));
+    }).then(reload).catch(reload);
+  } else { reload(); }
+}
+// ページ読み込み完了後、バックグラウンドでサイレント確認
+window.addEventListener('load',function(){
+  setTimeout(function(){checkAppUpdate(false);},4000);
+});
 
 // ── Service Worker ───────────────────────────────────────────────────
 if('serviceWorker' in navigator){
@@ -967,6 +1025,8 @@ document.addEventListener('visibilitychange',function(){
 },false);
 if(!SR){document.getElementById('noSupport').style.display='block';}else{initRec();}
 (function(){var sel=document.getElementById('parseDelaySel');if(sel){sel.value=String(PARSE_DELAY);if(!sel.value)sel.value='2800';}})();
+// バージョン表示を初期化
+(function(){var el=document.getElementById('currentVersionLabel');if(el)el.textContent=APP_VERSION;})();
 // file:// で開いている場合は起動時に案内を表示
 if(location.protocol==='file:'){
   var fbox=document.getElementById('micHelpBox');
