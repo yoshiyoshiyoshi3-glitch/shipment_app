@@ -816,7 +816,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1637';
+var APP_VERSION='20260526-1646';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2560,14 +2560,31 @@ var _settlementChart = null;
 var _currentChartType = 'market';
 
 // ── API設定フォーム ──────────────────────────────────
+function _applyApiCfgToForm(cfg){
+  var f=function(id,val){var el=document.getElementById(id);if(el&&val)el.value=val;};
+  f('cfg_claude_key', cfg.claude_api_key||'');
+  f('cfg_imap_server', cfg.imap_server||'imap.gmail.com');
+  f('cfg_imap_email',  cfg.imap_email||'');
+  f('cfg_imap_pass',   cfg.imap_password||'');
+}
 function loadApiConfigToForm(){
+  // まずlocalStorageから（スマホ・Gist受信後も確実に反映）
+  try{
+    var local=localStorage.getItem('apiConfig');
+    if(local){_applyApiCfgToForm(JSON.parse(local));}
+  }catch(e){}
+  // PCはAPIサーバーの値で上書き（より信頼性が高い）
   fetch(API_BASE+'/api/config').then(function(r){return r.json();}).then(function(cfg){
-    var f=function(id,val){var el=document.getElementById(id);if(el&&val)el.value=val;};
-    f('cfg_claude_key', cfg.claude_api_key||'');
-    f('cfg_imap_server', cfg.imap_server||'imap.gmail.com');
-    f('cfg_imap_email',  cfg.imap_email||'');
-    f('cfg_imap_pass',   cfg.imap_password||'');
-  }).catch(function(){});  // APIサーバー未起動時は無視
+    _applyApiCfgToForm(cfg);
+    // サーバー値をlocalStorageにも書き戻しておく（Gist同期の起点に）
+    var merged={
+      claude_api_key: cfg.claude_api_key||'',
+      imap_server:    cfg.imap_server||'imap.gmail.com',
+      imap_email:     cfg.imap_email||'',
+      imap_password:  cfg.imap_password||''
+    };
+    localStorage.setItem('apiConfig', JSON.stringify(merged));
+  }).catch(function(){});  // スマホ・サーバー未起動時はlocalStorageのみで対応済み
 }
 function saveApiConfig(){
   var cfg={
@@ -2576,9 +2593,17 @@ function saveApiConfig(){
     imap_email:     (document.getElementById('cfg_imap_email')||{}).value||'',
     imap_password:  (document.getElementById('cfg_imap_pass')||{}).value||''
   };
+  // localStorageに保存（スマホ・Gist同期用）
+  localStorage.setItem('apiConfig', JSON.stringify(cfg));
+  // Gistに自動プッシュ（PC→スマホへ伝達）
+  pushToServer();
+  // PC（APIサーバー起動時）はサーバー側にも保存
   fetch(API_BASE+'/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
-    .then(function(){showApiStatus('保存しました','ok');})
-    .catch(function(){showApiStatus('保存失敗。サーバーが起動しているか確認してください','error');});
+    .then(function(){showApiStatus('保存しました（Gist同期済）','ok');})
+    .catch(function(){
+      // スマホや未起動時はlocalStorage保存のみで成功とする
+      showApiStatus('保存しました（スマホはGistから同期されます）','ok');
+    });
 }
 function testApiConnection(){
   showApiStatus('接続確認中…','info');
@@ -2816,7 +2841,7 @@ function drawChart(type,settlements){
   });
 }
 // ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
-var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay'];
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig'];
 var _gistToken='';
 var _gistId='';
 
