@@ -911,7 +911,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1846';
+var APP_VERSION='20260526-1911';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2168,7 +2168,7 @@ function buildLabelPageHTML(allLabels){
     '.page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);gap:2mm;height:281mm}'+
     '.label{border:1.5px solid #b87888;border-radius:3mm;padding:3mm 4mm;display:flex;flex-direction:column;justify-content:space-between;background:white;overflow:hidden}'+
     '.label-empty{border:1px dashed #ddd}.lbl-market{font-size:10.5pt;font-weight:900;color:#8b6458;text-align:center;border-bottom:1px solid #e0cfc8;padding-bottom:1.5mm;margin-bottom:1.5mm}'+
-    '.lbl-name{font-size:15pt;font-weight:900;color:#3a2e28;text-align:center;line-height:1.2}.lbl-variety{font-size:10.5pt;color:#6e5a50;text-align:center}'+
+    '.lbl-name{font-size:11pt;font-weight:600;color:#6e5a50;text-align:center;line-height:1.2}.lbl-variety{font-size:17pt;font-weight:900;color:#3a2e28;text-align:center;line-height:1.2}'+
     '.lbl-row{display:flex;gap:2mm;margin-top:1.5mm}.lbl-cell{flex:1;background:#fdf8f5;border:1px solid #e0cfc8;border-radius:2mm;padding:1mm 2mm;display:flex;align-items:center;gap:2mm}'+
     '.lbl-key{font-size:8pt;color:#9a8880;font-weight:600}.lbl-val{font-size:13pt;font-weight:900;color:#3a2e28}.val-ext{color:#9a4820}'+
     '.lbl-count{font-size:19pt;font-weight:900;text-align:center;color:#3a2e28;line-height:1.1}.lbl-stems{font-size:11pt;font-weight:700;color:#6e5a50;margin-left:4pt}'+
