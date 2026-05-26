@@ -618,13 +618,16 @@
       設定した値は音声入力・手動入力どちらにも反映されます。空欄のままにすると既定値なし（手動入力）になります。
     </div>
     <div style="overflow-x:auto">
-      <table class="stat-table" id="flowerDefaultsTable" style="min-width:420px">
+      <table class="stat-table" id="flowerDefaultsTable" style="min-width:680px">
         <thead>
           <tr>
             <th style="text-align:left;min-width:100px">品目名</th>
-            <th style="min-width:70px">規格(cm)</th>
-            <th style="min-width:80px">輪数</th>
-            <th style="min-width:100px">1箱の本数</th>
+            <th style="min-width:68px">規格(cm)</th>
+            <th style="min-width:76px">輪数</th>
+            <th style="min-width:90px">1箱の本数</th>
+            <th style="min-width:76px">等級<br><span style="font-size:10px;font-weight:400">規定値</span></th>
+            <th style="min-width:84px;line-height:1.4">B等級<br><span style="font-size:10px;font-weight:400">規格上限(cm)</span></th>
+            <th style="min-width:84px;line-height:1.4">外等級<br><span style="font-size:10px;font-weight:400">規格上限(cm)</span></th>
           </tr>
         </thead>
         <tbody id="flowerDefaultsBody"></tbody>
@@ -756,6 +759,8 @@ var NOTE_ONLY_KEYWORDS = ['短い','みじかい','傷','きず'];
 var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワリ':'80'};
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
 var DEFAULT_COUNT = {};
+var DEFAULT_GRADE = {};
+var GRADE_RULES = {};  // {品目名: {bMax:cm数値, extMax:cm数値}}
 var RINGS_MASTER = ['3F↑','2F','SP'];
 // 品目ごとの規定値（設定タブで編集・localStorageに保存）
 var FLOWER_DEFAULTS = {};
@@ -764,7 +769,7 @@ var FLOWER_DEFAULTS = {};
   _applyFlowerDefaults();
 })();
 function _applyFlowerDefaults(){
-  DEFAULT_COUNT={};
+  DEFAULT_COUNT={};DEFAULT_GRADE={};GRADE_RULES={};
   for(var n in FLOWER_DEFAULTS){
     if(!FLOWER_DEFAULTS.hasOwnProperty(n))continue;
     var d=FLOWER_DEFAULTS[n];
@@ -772,6 +777,13 @@ function _applyFlowerDefaults(){
     if(d.rings&&RINGS_MASTER.indexOf(d.rings)>=0)DEFAULT_RINGS[n]=d.rings;
     else if(d.rings===''&&n in DEFAULT_RINGS)delete DEFAULT_RINGS[n];
     if(d.count)DEFAULT_COUNT[n]=d.count;
+    if(d.grade)DEFAULT_GRADE[n]=d.grade;
+    var bm=parseInt(d.bMax,10);var em=parseInt(d.extMax,10);
+    if(!isNaN(bm)||!isNaN(em)){
+      GRADE_RULES[n]={};
+      if(!isNaN(em))GRADE_RULES[n].extMax=em;
+      if(!isNaN(bm))GRADE_RULES[n].bMax=bm;
+    }
   }
 }
 var FLOWER_NAME_MAP = [
@@ -953,7 +965,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-2001';
+var APP_VERSION='20260526-2005';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1470,6 +1482,24 @@ function checkItemInputs(id){
     else{_setInputState(bEl,'',hw,he);}
   }
 
+  // 等級の自動判定（GRADE_RULESに従い規格から自動セット）
+  var gEl=document.getElementById('g_'+id);
+  var nEl2=document.getElementById('n_'+id);
+  if(gEl&&nEl2&&sEl&&sEl.value.trim()!==''){
+    var sv2=_parseInputNum(sEl.value);
+    if(!isNaN(sv2)&&sv2>0){
+      var nm2=nEl2.value.trim();
+      var gr=GRADE_RULES[nm2];
+      if(gr){
+        var autoGrade=null;
+        if(gr.extMax&&sv2<=gr.extMax)autoGrade='外';
+        else if(gr.bMax&&sv2<=gr.bMax)autoGrade='B';
+        else autoGrade=DEFAULT_GRADE[nm2]||'A';
+        if(autoGrade&&gEl.value!==autoGrade){gEl.value=autoGrade;onGradeChange(id);}
+      }
+    }
+  }
+
   // カード枠の色更新
   if(card){
     card.classList.remove('has-warn','has-error');
@@ -1515,13 +1545,15 @@ function addItem(data){
     if(sEl&&!data.size&&DEFAULT_SIZE[nm])sEl.value=DEFAULT_SIZE[nm];
     var cEl2=document.getElementById('c_'+id);
     if(cEl2&&!data.count&&DEFAULT_COUNT[nm])cEl2.value=DEFAULT_COUNT[nm];
+    // 等級のデフォルト（音声入力など grade 未指定の場合）
+    var gEl2=document.getElementById('g_'+id);
+    if(gEl2&&!data.grade&&DEFAULT_GRADE[nm]){gEl2.value=DEFAULT_GRADE[nm];onGradeChange(id);}
   })();
   // 品目名が変わったとき規定値を自動セット
   updateVarietyList(id,data.name||'');
   var nel=document.getElementById('n_'+id);
   if(nel)nel.addEventListener('input',function(){
     updateVarietyList(id,nel.value);
-    var defs=FLOWER_DEFAULTS[nel.value]||{};
     // 輪数：空のときだけセット
     var rs=document.getElementById('rn_'+id);
     if(rs&&!rs.value&&DEFAULT_RINGS[nel.value])rs.value=DEFAULT_RINGS[nel.value];
@@ -1531,6 +1563,9 @@ function addItem(data){
     // 本数：空のときだけセット
     var ce=document.getElementById('c_'+id);
     if(ce&&!ce.value.trim()&&DEFAULT_COUNT[nel.value])ce.value=DEFAULT_COUNT[nel.value];
+    // 等級：Aのままのときだけデフォルト等級をセット
+    var ge=document.getElementById('g_'+id);
+    if(ge&&ge.value==='A'&&DEFAULT_GRADE[nel.value]){ge.value=DEFAULT_GRADE[nel.value];onGradeChange(id);}
     refreshSummary(id);
   });
   var vvEl=document.getElementById('v_'+id);if(vvEl)vvEl.addEventListener('input',function(){refreshSummary(id);});
@@ -2448,6 +2483,9 @@ function buildFlowerDefaultsUI(){
     var curSize=d.size!==undefined?d.size:(DEFAULT_SIZE[name]||'');
     var curRings=d.rings!==undefined?d.rings:(DEFAULT_RINGS[name]||'');
     var curCount=d.count!==undefined?d.count:(DEFAULT_COUNT[name]||'');
+    var curGrade=d.grade!==undefined?d.grade:(DEFAULT_GRADE[name]||'');
+    var curBMax=d.bMax!==undefined?d.bMax:'';
+    var curExtMax=d.extMax!==undefined?d.extMax:'';
     var inp=function(cls,val,ph,w){
       return '<input type="text" inputmode="numeric" class="'+cls+'" value="'+esc(val)+'" placeholder="'+ph+'" style="width:'+w+'px;text-align:center;font-size:14px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">';
     };
@@ -2456,13 +2494,21 @@ function buildFlowerDefaultsUI(){
       '<option value="">--</option>'+
       ['3F↑','2F','SP'].map(function(v){return'<option value="'+v+'"'+(curRings===v?' selected':'')+'>'+v+'</option>';}).join('')+
       '</select>';
+    var gradeSel=
+      '<select class="fdef-grade" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">'+
+      '<option value="">--</option>'+
+      ['A','B','秀','優','良','外'].map(function(v){return'<option value="'+v+'"'+(curGrade===v?' selected':'')+'>'+v+'</option>';}).join('')+
+      '</select>';
     var tr=document.createElement('tr');
     tr.dataset.name=name;
     tr.innerHTML=
       '<td style="font-weight:600;font-size:13px;padding:6px 8px;white-space:nowrap">'+esc(name)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',58)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',56)+'</td>'+
       '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',82)+'</td>';
+      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',78)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-bmax',curBMax,'例:70',62)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-extmax',curExtMax,'例:60',62)+'</td>';
     tbody.appendChild(tr);
   });
 }
@@ -2475,9 +2521,12 @@ function saveFlowerDefaults(){
     var size=(row.querySelector('.fdef-size').value||'').trim();
     var rings=row.querySelector('.fdef-rings').value;
     var count=(row.querySelector('.fdef-count').value||'').trim();
+    var grade=row.querySelector('.fdef-grade').value;
+    var bMax=(row.querySelector('.fdef-bmax').value||'').trim();
+    var extMax=(row.querySelector('.fdef-extmax').value||'').trim();
     // 数字のみなら単位を付与
     if(/^\d+$/.test(count))count=count+'本';
-    newDefs[name]={size:size,rings:rings,count:count};
+    newDefs[name]={size:size,rings:rings,count:count,grade:grade,bMax:bMax,extMax:extMax};
   });
   FLOWER_DEFAULTS=newDefs;
   localStorage.setItem('flowerDefaults',JSON.stringify(FLOWER_DEFAULTS));
