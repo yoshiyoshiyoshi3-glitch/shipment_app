@@ -980,7 +980,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-2016';
+var APP_VERSION='20260526-2048';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1908,6 +1908,7 @@ function buildMarketSummaries(){
         '<button class="btn-export" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsCSV()">&#x1F4E5; 全市場CSV</button>'+
         '<button class="btn-excel" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsExcel()">&#x1F4D7; 全市場Excel</button>'+
         '<button class="btn-label" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="printAllLabels()">&#x1F3F7; 全市場ラベル印刷</button>'+
+        '<button style="flex:1;min-width:110px;font-size:13px;padding:9px 10px;background:#6b4a3a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;min-height:48px;touch-action:manipulation" onclick="printAllMarketsSlips()">&#x1F5A8; 全市場伝票<br>まとめて印刷</button>'+
         '<button class="btn-pdf" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsPDF()">&#x1F4C4; 全市場PDF</button>'+
         '<button class="btn-mail" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="sendAllMarketsEmail()">&#x2709; 全市場メール</button>'+
       '</div>';
@@ -2048,6 +2049,56 @@ function buildPdfHTML(title,date,producer,tableRows,market){
     '<table class="info"><tr><td class="lbl">出荷日</td><td>'+date+'</td></tr>'+marketLine+addrLine+telLine+codeLine+'<tr><td class="lbl">生産者名</td><td>'+producer+'</td></tr></table>'+
     tableRows+
     '<div class="footer">出力：'+new Date().toLocaleString('ja-JP')+'</div></div></body></html>';
+}
+function printAllMarketsSlips(){
+  var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
+  var pinfo=loadProducerInfo();
+  var css='*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Meiryo","MS Gothic",sans-serif;font-size:11pt;background:white}'+
+    '@media print{.no-print{display:none!important}.page{page-break-after:always}.page:last-child{page-break-after:avoid}@page{size:A4;margin:15mm}}'+
+    '@media screen{body{padding:16px}.page{width:180mm;margin:0 auto 20mm}}'+
+    'h1{font-size:15pt;font-weight:900;color:#8b6458;border-bottom:3px solid #b87888;padding-bottom:3mm;margin-bottom:4mm}'+
+    '.info{width:100%;border-collapse:collapse;margin-bottom:5mm;font-size:10.5pt}'+
+    '.info td{padding:1.5mm 3mm}.info td.lbl{font-weight:700;color:#8b6458;width:28mm}'+
+    'table.main{width:100%;border-collapse:collapse;font-size:10pt}'+
+    'table.main th{background:#8b6458;color:white;padding:2mm;font-weight:700;text-align:center;border:1px solid #6b4a3a;word-break:keep-all}'+
+    'table.main td{padding:2mm;border:1px solid #e0cfc8;vertical-align:middle;word-break:break-all}'+
+    'table.main tr:nth-child(even) td{background:#fdf8f5}'+
+    '.ext{color:#c62828;font-weight:700}'+
+    '.footer{margin-top:6mm;font-size:8pt;color:#aaa;text-align:right}'+
+    '.pbtn{display:block;margin:0 auto 16px;padding:12px 36px;background:#b71c1c;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}'+
+    '.mkt-sep{border:none;border-top:2px dashed #ccc;margin:8mm 0}';
+  var pages=[];
+  MARKETS.forEach(function(market,mi){
+    var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
+    if(!items.length)return;
+    var pcode=getProducerCode(market);
+    var marketLine='<tr><td class="lbl">市場名</td><td>'+market+'</td></tr>';
+    var addrLine=pinfo.addr?'<tr><td class="lbl">住所</td><td>'+pinfo.addr+'</td></tr>':'';
+    var telLine=pinfo.tel?'<tr><td class="lbl">電話</td><td>'+pinfo.tel+'</td></tr>':'';
+    var codeLine=pcode?'<tr><td class="lbl">生産者コード</td><td><strong>'+pcode+'</strong></td></tr>':'';
+    var tbody=items.map(function(it){
+      return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
+    }).join('');
+    var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
+    pages.push(
+      '<div class="page">'+
+      '<h1>出荷伝票　'+market+'</h1>'+
+      '<table class="info"><tr><td class="lbl">出荷日</td><td>'+date+'</td></tr>'+marketLine+addrLine+telLine+codeLine+'<tr><td class="lbl">生産者名</td><td>'+producer+'</td></tr></table>'+
+      tbl+
+      '<div class="footer">出力：'+new Date().toLocaleString('ja-JP')+'</div>'+
+      '</div>'
+    );
+  });
+  if(!pages.length){setStatus('振り分けデータがありません','error');return;}
+  var autoprint='<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>';
+  var html='<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>出荷伝票 全市場</title><style>'+css+'</style></head><body>'+
+    autoprint+
+    '<button class="pbtn no-print" onclick="window.print()">🖨️ 全市場まとめて印刷</button>'+
+    pages.join('')+
+    '</body></html>';
+  var win=window.open('','_blank','width=960,height=800');
+  win.document.open();win.document.write(html);win.document.close();
+  setStatus('全市場伝票（'+pages.length+'市場）を開きました');
 }
 function exportMarketPDF(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
