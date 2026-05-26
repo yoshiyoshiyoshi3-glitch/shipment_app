@@ -489,6 +489,12 @@
     <div id="updateCheckStatus" style="font-size:12px;color:var(--text-mid);margin-top:8px"></div>
   </div>
   <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F3A4; マイク診断</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">音声認識が動かない場合に原因を調べます。</div>
+    <button class="btn-export" style="font-size:13px;padding:10px 16px" onclick="diagnoseMic()">&#x1F50D; マイク診断を実行</button>
+    <div id="micDiagOut" style="font-size:12px;line-height:2;margin-top:10px"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
     <div class="section-title">&#x1F50A; VOICEVOX 読み上げ設定</div>
     <div style="font-size:12px;color:var(--sage);background:var(--sage-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(122,158,130,0.25)">
       &#x2139; <a href="https://voicevox.hiroshiba.jp/" target="_blank" style="color:var(--sage)">VOICEVOX</a>（無料）をインストール・起動すると自然な日本語音声で読み上げます。<br>
@@ -816,7 +822,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1646';
+var APP_VERSION='20260526-1738';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -959,6 +965,13 @@ function initRec(){
 }
 // ── マイクを確保しAudioContext+MediaRecorderでアクティブ状態を維持 ──
 function acquireMic(callback){
+  // モバイルはgetUserMediaをスキップしてSpeechRecognitionに直接マイクを任せる
+  // （getUserMediaが排他ロックを取るとSpeechRecognitionが起動できない端末への対策）
+  if(isMobile){
+    permissionGranted=true;
+    if(callback)callback(true);
+    return;
+  }
   // すでにストリームが生きていればそのまま使う
   if(micStream&&micStream.active&&micCtx&&micCtx.state!=='closed'){
     if(micCtx.state==='suspended'){micCtx.resume().catch(function(){});}
@@ -974,21 +987,24 @@ function acquireMic(callback){
     .then(function(stream){
       micStream=stream;
       permissionGranted=true;
-      // ① AudioContext に接続して「使用中」状態を維持
-      //    →これにより SpeechRecognition 再起動でも許可プロンプトが出ない
-      try{
-        micCtx=new(window.AudioContext||window.webkitAudioContext)();
-        micSource=micCtx.createMediaStreamSource(stream);
-        var gain=micCtx.createGain(); gain.gain.value=0; // 無音：スピーカーには出さない
-        micSource.connect(gain); gain.connect(micCtx.destination);
-      }catch(ex){console.warn('AudioContext失敗',ex);}
-      // ② MediaRecorder も起動（追加の保険 — Androidで特に有効）
-      try{
-        if(micKeepAlive&&micKeepAlive.state==='recording'){micKeepAlive.stop();}
-        micKeepAlive=new MediaRecorder(stream);
-        micKeepAlive.ondataavailable=function(){}; // データは捨てる
-        micKeepAlive.start(10000); // 10秒ごとにチャンク（停止を防ぐ）
-      }catch(ex){console.warn('MediaRecorder失敗',ex);}
+      // ① AudioContext（PCのみ：モバイルはSpeechRecognitionと競合するためスキップ）
+      if(!isMobile){
+        try{
+          micCtx=new(window.AudioContext||window.webkitAudioContext)();
+          micSource=micCtx.createMediaStreamSource(stream);
+          var gain=micCtx.createGain(); gain.gain.value=0;
+          micSource.connect(gain); gain.connect(micCtx.destination);
+        }catch(ex){console.warn('AudioContext失敗',ex);}
+      }
+      // ② MediaRecorder（PCのみ：Androidはマイク排他制御でSpeechRecognitionと競合するためスキップ）
+      if(!isMobile){
+        try{
+          if(micKeepAlive&&micKeepAlive.state==='recording'){micKeepAlive.stop();}
+          micKeepAlive=new MediaRecorder(stream);
+          micKeepAlive.ondataavailable=function(){};
+          micKeepAlive.start(10000);
+        }catch(ex){console.warn('MediaRecorder失敗',ex);}
+      }
       setStatus('マイク準備完了','ok');
       if(callback)callback(true);
     })
@@ -1039,6 +1055,66 @@ if(location.protocol==='file:'){
   }
 }
 
+function diagnoseMic(){
+  var out=document.getElementById('micDiagOut');
+  if(!out)return;
+  out.innerHTML='<div style="color:#888">診断中...</div>';
+  var log=function(msg,ok){
+    var color=ok===true?'#4caf50':ok===false?'#e53935':'#555';
+    out.innerHTML+='<div style="color:'+color+'">'+msg+'</div>';
+  };
+  out.innerHTML='';
+  // ① SR利用可否
+  var srType=window.SpeechRecognition?'標準版':window.webkitSpeechRecognition?'webkit版':'なし';
+  if(!SR){
+    log('① Web Speech API: ❌ このブラウザは非対応です（Chromeを使ってください）',false);
+    return;
+  }
+  log('① Web Speech API: ✅ 利用可能（'+srType+'）',true);
+  log('② モバイル判定: '+(isMobile?'📱 スマートフォン':'🖥 PC'));
+  log('③ プロトコル: '+location.protocol+(location.protocol==='https:'?' ✅':' ❌（HTTPSが必要）'));
+  // ④ getUserMedia（PCのみ確認、モバイルはSpeechRecognitionに任せる）
+  if(!isMobile&&navigator.mediaDevices){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+      log('④ マイク権限: ✅ 許可済み',true);
+      s.getTracks().forEach(function(t){t.stop();});
+    }).catch(function(e){
+      log('④ マイク権限: ❌ '+e.name,false);
+    });
+  } else {
+    log('④ マイク権限: （スマホはSpeechRecognitionが直接管理）');
+  }
+  // ⑤ SpeechRecognition起動テスト
+  log('⑤ 音声認識エンジン起動テスト中（3秒間）...');
+  var testRec=new SR();
+  testRec.lang='ja-JP'; testRec.continuous=false; testRec.interimResults=false;
+  var gotStart=false,gotResult=false;
+  testRec.onstart=function(){
+    gotStart=true;
+    log('⑤ 音声認識エンジン: ✅ 起動成功！',true);
+    log('　→ 何か話しかけてください（3秒以内）');
+  };
+  testRec.onresult=function(e){
+    gotResult=true;
+    log('⑥ 音声認識: ✅ 認識成功「'+e.results[0][0].transcript+'」',true);
+    log('　→ マイクは正常に動いています！',true);
+  };
+  testRec.onerror=function(e){
+    var hint='';
+    if(e.error==='not-allowed')hint=' → 設定でマイクを「許可」にしてください';
+    if(e.error==='network')hint=' → インターネット接続を確認してください';
+    if(e.error==='service-not-allowed')hint=' → Google音声サービスに接続できません';
+    if(e.error==='no-speech')hint=' → 音が検出されませんでした';
+    log('⑤ 音声認識エラー: ❌ '+e.error+hint,false);
+  };
+  testRec.onend=function(){
+    if(!gotStart)log('⑤ 音声認識エンジン: ❌ 起動前に終了しました',false);
+    if(gotStart&&!gotResult)log('　→ 話しかけが検出されませんでした（環境音・距離を確認）');
+  };
+  try{testRec.start();}
+  catch(e){log('⑤ start()失敗: ❌ '+e.message,false);}
+  setTimeout(function(){try{testRec.stop();}catch(ex){}},5000);
+}
 function showMicHelp(){
   var isFile=location.protocol==='file:';
   var box=document.getElementById('micHelpBox');
