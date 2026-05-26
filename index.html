@@ -271,6 +271,17 @@
     <button class="btn-label" id="speakAllBtn" onclick="speakAllItems()" style="flex:1;min-width:160px">&#x1F50A; 全品目読み上げ</button>
     <button class="btn-clear" id="ttsPauseBtn" onclick="toggleTTSPause()" style="display:none;flex:1;min-height:48px;font-size:14px;font-weight:600">&#x23F8; 一時停止</button>
     <button class="btn-clear" id="ttsStopBtn" onclick="stopTTS()" style="display:none;min-height:48px;padding:12px 16px;font-size:14px;font-weight:600">&#x23F9;</button>
+    <div style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;white-space:nowrap">
+      <span>&#x1F3B5; 速度</span>
+      <select id="ttsRateSelect" onchange="setTTSRate(this.value)" style="font-size:13px;padding:4px 6px;border:1px solid #ccc;border-radius:6px;background:#fff;min-height:36px">
+        <option value="0.5">0.5×（ゆっくり）</option>
+        <option value="0.75">0.75×</option>
+        <option value="1.0" selected>1.0×（標準）</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×（速い）</option>
+        <option value="2.0">2.0×（最速）</option>
+      </select>
+    </div>
   </div>
 </div>
 <div id="step2" class="tab-panel">
@@ -912,7 +923,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1816';
+var APP_VERSION='20260526-1825';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -971,6 +982,9 @@ function doUpdate(){
 // ページ読み込み完了後、バックグラウンドでサイレント確認
 window.addEventListener('load',function(){
   setTimeout(function(){checkAppUpdate(false);},4000);
+  // 読み上げ速度セレクタを保存値で初期化
+  var rateEl=document.getElementById('ttsRateSelect');
+  if(rateEl)rateEl.value=String(_ttsRate);
 });
 
 // ── Service Worker ───────────────────────────────────────────────────
@@ -2741,6 +2755,17 @@ var _voicevoxUrl='http://localhost:50021';
 var _voicevoxSpeaker=3;
 var _voicevoxAvailable=false;
 var _currentAudio=null;
+// 読み上げ速度（0.5=遅い〜2.0=速い、デフォルト1.0）
+var _ttsRate=1.0;
+(function(){var v=parseFloat(localStorage.getItem('ttsRate'));if(v>=0.5&&v<=2.0)_ttsRate=v;})();
+function setTTSRate(v){
+  v=parseFloat(v);
+  if(isNaN(v)||v<0.5||v>2.0)return;
+  _ttsRate=v;
+  localStorage.setItem('ttsRate',String(v));
+  var el=document.getElementById('ttsRateSelect');
+  if(el)el.value=String(v);
+}
 // localStorage から設定復元
 (function(){
   var u=localStorage.getItem('voicevoxUrl'); if(u)_voicevoxUrl=u;
@@ -2835,6 +2860,8 @@ function voicevoxSynth(text){
   return fetch(_voicevoxUrl+'/audio_query?text='+encodeURIComponent(text)+'&speaker='+_voicevoxSpeaker,{method:'POST'})
     .then(function(r){if(!r.ok)throw new Error('audio_query '+r.status);return r.json();})
     .then(function(q){
+      // 速度をaudio_queryのspeedScaleに反映
+      q.speedScale=_ttsRate;
       return fetch(_voicevoxUrl+'/synthesis?speaker='+_voicevoxSpeaker,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(q)
       });
@@ -2846,7 +2873,7 @@ function _speakWebTTS(text){
   if(!window.speechSynthesis)return;
   window.speechSynthesis.cancel();
   var utt=new SpeechSynthesisUtterance(text);
-  utt.lang='ja-JP'; utt.rate=0.95; utt.pitch=1.15;
+  utt.lang='ja-JP'; utt.rate=_ttsRate; utt.pitch=1.15;
   if(_ttsVoice)utt.voice=_ttsVoice;
   utt.onstart=function(){_ttsSpeaking=true;_ttsPaused=false;updateTTSUI();};
   utt.onend=function(){_ttsSpeaking=false;_ttsPaused=false;updateTTSUI();};
