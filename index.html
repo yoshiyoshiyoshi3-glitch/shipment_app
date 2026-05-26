@@ -611,6 +611,30 @@
     <div id="masterVarietyArea" style="margin-top:8px"></div>
     <div id="masterSavedMsg" style="display:none;color:#8b6458;font-weight:bold;margin-top:6px">&#x2705; マスタを保存しました</div>
   </div>
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F4CB; 品目ごとの規定値編集</div>
+    <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.7;background:var(--sage-light);border-radius:6px;padding:7px 10px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; 品目名を入力したときに自動でセットされる初期値を設定します。<br>
+      設定した値は音声入力・手動入力どちらにも反映されます。空欄のままにすると既定値なし（手動入力）になります。
+    </div>
+    <div style="overflow-x:auto">
+      <table class="stat-table" id="flowerDefaultsTable" style="min-width:420px">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:100px">品目名</th>
+            <th style="min-width:70px">規格(cm)</th>
+            <th style="min-width:80px">輪数</th>
+            <th style="min-width:100px">1箱の本数</th>
+          </tr>
+        </thead>
+        <tbody id="flowerDefaultsBody"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" onclick="saveFlowerDefaults()">&#x1F4BE; 規定値を保存</button>
+      <span id="flowerDefaultsSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
+    </div>
+  </div>
 </div>
 <script>
 // ── 品種マスター ──────────────────────────────────────────────────────
@@ -731,7 +755,25 @@ var GAICHI_KEYWORDS = ['曲がり','曲り','まがり','細い','ほそい','�
 var NOTE_ONLY_KEYWORDS = ['短い','みじかい','傷','きず'];
 var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワリ':'80'};
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
+var DEFAULT_COUNT = {};
 var RINGS_MASTER = ['3F↑','2F','SP'];
+// 品目ごとの規定値（設定タブで編集・localStorageに保存）
+var FLOWER_DEFAULTS = {};
+(function(){
+  try{var s=localStorage.getItem('flowerDefaults');if(s)FLOWER_DEFAULTS=JSON.parse(s);}catch(e){}
+  _applyFlowerDefaults();
+})();
+function _applyFlowerDefaults(){
+  DEFAULT_COUNT={};
+  for(var n in FLOWER_DEFAULTS){
+    if(!FLOWER_DEFAULTS.hasOwnProperty(n))continue;
+    var d=FLOWER_DEFAULTS[n];
+    if(d.size)DEFAULT_SIZE[n]=d.size;
+    if(d.rings&&RINGS_MASTER.indexOf(d.rings)>=0)DEFAULT_RINGS[n]=d.rings;
+    else if(d.rings===''&&n in DEFAULT_RINGS)delete DEFAULT_RINGS[n];
+    if(d.count)DEFAULT_COUNT[n]=d.count;
+  }
+}
 var FLOWER_NAME_MAP = [
   {pattern:'トルコキキョウ',canonical:'トルコキキョウ'},{pattern:'トルコギキョウ',canonical:'トルコキキョウ'},
   {pattern:'トルコ帰京',canonical:'トルコキキョウ'},{pattern:'トルコ桔梗',canonical:'トルコキキョウ'},
@@ -911,7 +953,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1911';
+var APP_VERSION='20260526-2001';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1466,14 +1508,29 @@ function addItem(data){
     var ringsVal=data.rings!==undefined?data.rings:(DEFAULT_RINGS[data.name||'']||'');
     if(ringsVal&&RINGS_MASTER.indexOf(ringsVal)>=0)rnSel.value=ringsVal;
   }
-  // 品目名が変わったときデフォルト輪数を自動セット
+  // 規格・本数のデフォルト値をセット（data側に値がない場合のみ）
+  (function(){
+    var nm=data.name||'';
+    var sEl=document.getElementById('s_'+id);
+    if(sEl&&!data.size&&DEFAULT_SIZE[nm])sEl.value=DEFAULT_SIZE[nm];
+    var cEl2=document.getElementById('c_'+id);
+    if(cEl2&&!data.count&&DEFAULT_COUNT[nm])cEl2.value=DEFAULT_COUNT[nm];
+  })();
+  // 品目名が変わったとき規定値を自動セット
   updateVarietyList(id,data.name||'');
   var nel=document.getElementById('n_'+id);
   if(nel)nel.addEventListener('input',function(){
     updateVarietyList(id,nel.value);
-    // 品目名が変わったとき、輪数が空なら品目別デフォルトをセット
+    var defs=FLOWER_DEFAULTS[nel.value]||{};
+    // 輪数：空のときだけセット
     var rs=document.getElementById('rn_'+id);
-    if(rs&&!rs.value&&DEFAULT_RINGS[nel.value]){rs.value=DEFAULT_RINGS[nel.value];}
+    if(rs&&!rs.value&&DEFAULT_RINGS[nel.value])rs.value=DEFAULT_RINGS[nel.value];
+    // 規格：空のときだけセット
+    var se=document.getElementById('s_'+id);
+    if(se&&!se.value.trim()&&DEFAULT_SIZE[nel.value])se.value=DEFAULT_SIZE[nel.value];
+    // 本数：空のときだけセット
+    var ce=document.getElementById('c_'+id);
+    if(ce&&!ce.value.trim()&&DEFAULT_COUNT[nel.value])ce.value=DEFAULT_COUNT[nel.value];
     refreshSummary(id);
   });
   var vvEl=document.getElementById('v_'+id);if(vvEl)vvEl.addEventListener('input',function(){refreshSummary(id);});
@@ -2376,6 +2433,58 @@ function addMasterFlower(){
   buildMasterFlowerSelect();
   var sel=document.getElementById('masterFlowerSel');
   if(sel){sel.value=name;buildMasterVarietyList();}
+}
+
+// ── 品目ごとの規定値 UI ─────────────────────────────────────────
+function buildFlowerDefaultsUI(){
+  var tbody=document.getElementById('flowerDefaultsBody');
+  if(!tbody)return;
+  tbody.innerHTML='';
+  // VARIETY_DATA + customMaster の全品目を列挙
+  var allFlowers=Object.keys(VARIETY_DATA).slice();
+  try{var cm=JSON.parse(localStorage.getItem('customMaster'))||{};for(var ck in cm){if(cm.hasOwnProperty(ck)&&allFlowers.indexOf(ck)<0)allFlowers.push(ck);}}catch(e){}
+  allFlowers.forEach(function(name){
+    var d=FLOWER_DEFAULTS[name]||{};
+    var curSize=d.size!==undefined?d.size:(DEFAULT_SIZE[name]||'');
+    var curRings=d.rings!==undefined?d.rings:(DEFAULT_RINGS[name]||'');
+    var curCount=d.count!==undefined?d.count:(DEFAULT_COUNT[name]||'');
+    var inp=function(cls,val,ph,w){
+      return '<input type="text" inputmode="numeric" class="'+cls+'" value="'+esc(val)+'" placeholder="'+ph+'" style="width:'+w+'px;text-align:center;font-size:14px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">';
+    };
+    var ringSel=
+      '<select class="fdef-rings" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">'+
+      '<option value="">--</option>'+
+      ['3F↑','2F','SP'].map(function(v){return'<option value="'+v+'"'+(curRings===v?' selected':'')+'>'+v+'</option>';}).join('')+
+      '</select>';
+    var tr=document.createElement('tr');
+    tr.dataset.name=name;
+    tr.innerHTML=
+      '<td style="font-weight:600;font-size:13px;padding:6px 8px;white-space:nowrap">'+esc(name)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',58)+'</td>'+
+      '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
+      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',82)+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+function saveFlowerDefaults(){
+  var tbody=document.getElementById('flowerDefaultsBody');
+  if(!tbody)return;
+  var newDefs={};
+  tbody.querySelectorAll('tr').forEach(function(row){
+    var name=row.dataset.name;if(!name)return;
+    var size=(row.querySelector('.fdef-size').value||'').trim();
+    var rings=row.querySelector('.fdef-rings').value;
+    var count=(row.querySelector('.fdef-count').value||'').trim();
+    // 数字のみなら単位を付与
+    if(/^\d+$/.test(count))count=count+'本';
+    newDefs[name]={size:size,rings:rings,count:count};
+  });
+  FLOWER_DEFAULTS=newDefs;
+  localStorage.setItem('flowerDefaults',JSON.stringify(FLOWER_DEFAULTS));
+  _applyFlowerDefaults();
+  var msg=document.getElementById('flowerDefaultsSavedMsg');
+  if(msg){msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2500);}
+  setStatus('品目の規定値を保存しました','ok');
 }
 
 // ── 送信パネル表示 ──────────────────────────────────────────────
@@ -3502,6 +3611,7 @@ buildSettingsTab=function(){
   if(ti&&_gistToken)ti.value=_gistToken;
   var cs=document.getElementById('gistConnStatus');
   if(cs&&_gistId){cs.textContent='✓ Gist設定済み';cs.style.color='#7a9e82';}
+  buildFlowerDefaultsUI();
 };
 </script>
 </body>
