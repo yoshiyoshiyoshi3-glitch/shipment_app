@@ -387,18 +387,64 @@
     </div>
     <div id="settlementFetchStatus" style="display:none;font-size:13px;padding:8px 10px;border-radius:6px;margin-bottom:8px"></div>
   </div>
-  <div class="card">
-    <div class="section-title">&#x1F4CA; 精算データ一覧</div>
-    <div class="stat-filter">
-      <select id="sMarket" onchange="buildSettlementView()"><option value="">すべての市場</option></select>
-      <select id="sYear"   onchange="buildSettlementView()"><option value="">すべての年</option></select>
-      <select id="sFlower" onchange="buildSettlementView()"><option value="">すべての品目</option></select>
+  <!-- 精算ビュー切り替え -->
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+    <button class="tab-btn active" id="ss_detail_btn" onclick="switchSettlementView('detail')" style="flex:1;font-size:13px;min-height:40px">&#x1F4CB; 明細一覧</button>
+    <button class="tab-btn" id="ss_monthly_btn" onclick="switchSettlementView('monthly')" style="flex:1;font-size:13px;min-height:40px">&#x1F4C5; 月別集計</button>
+    <button class="tab-btn" id="ss_daily_btn" onclick="switchSettlementView('daily')" style="flex:1;font-size:13px;min-height:40px">&#x1F4C6; 日別集計</button>
+  </div>
+
+  <!-- 明細一覧（既存） -->
+  <div id="ss_detail_panel">
+    <div class="card">
+      <div class="section-title">&#x1F4CB; 精算データ明細</div>
+      <div class="stat-filter">
+        <select id="sMarket" onchange="buildSettlementView()"><option value="">すべての市場</option></select>
+        <select id="sYear"   onchange="buildSettlementView()"><option value="">すべての年</option></select>
+        <select id="sMonth"  onchange="buildSettlementView()"><option value="">すべての月</option></select>
+        <select id="sFlower" onchange="buildSettlementView()"><option value="">すべての品目</option></select>
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="settlementTable">
+        <thead><tr><th>精算日</th><th>市場</th><th>品目</th><th>品種</th><th>等級</th><th>規格</th><th>箱数</th><th>単価</th><th>金額</th><th></th></tr></thead>
+        <tbody id="settlementBody"></tbody>
+      </table></div>
+      <div id="settlementTotal" style="text-align:right;font-weight:700;color:var(--primary);margin-top:6px;font-size:14px"></div>
     </div>
-    <div class="stat-wrap"><table class="stat-table" id="settlementTable">
-      <thead><tr><th>精算日</th><th>市場</th><th>品目</th><th>品種</th><th>等級</th><th>規格</th><th>箱数</th><th>単価</th><th>金額</th><th></th></tr></thead>
-      <tbody id="settlementBody"></tbody>
-    </table></div>
-    <div id="settlementTotal" style="text-align:right;font-weight:700;color:var(--primary);margin-top:6px;font-size:14px"></div>
+  </div>
+
+  <!-- 月別集計（新規） -->
+  <div id="ss_monthly_panel" style="display:none">
+    <div class="card">
+      <div class="section-title">&#x1F4C5; 月別精算集計</div>
+      <div class="stat-filter">
+        <select id="smYear"   onchange="buildMonthlySettlement()"><option value="">すべての年</option></select>
+        <select id="smMarket" onchange="buildMonthlySettlement()"><option value="">すべての市場</option></select>
+        <select id="smFlower" onchange="buildMonthlySettlement()"><option value="">すべての品目</option></select>
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="smTable">
+        <thead><tr><th>年月</th><th>市場数</th><th>合計箱数</th><th>合計金額</th><th>主な品目（上位3）</th></tr></thead>
+        <tbody id="smBody"></tbody>
+      </table></div>
+      <div id="smTotal" style="text-align:right;font-weight:700;color:var(--primary);margin-top:6px;font-size:14px"></div>
+    </div>
+  </div>
+
+  <!-- 日別集計（新規） -->
+  <div id="ss_daily_panel" style="display:none">
+    <div class="card">
+      <div class="section-title">&#x1F4C6; 日別精算集計</div>
+      <div class="stat-filter">
+        <select id="sdYear"  onchange="buildDailySettlement()"><option value="">すべての年</option></select>
+        <select id="sdMonth" onchange="buildDailySettlement()"><option value="">すべての月</option></select>
+        <select id="sdMarket" onchange="buildDailySettlement()"><option value="">すべての市場</option></select>
+        <select id="sdFlower" onchange="buildDailySettlement()"><option value="">すべての品目</option></select>
+      </div>
+      <div class="stat-wrap"><table class="stat-table" id="sdTable">
+        <thead><tr><th>精算日</th><th>市場</th><th>品目・品種</th><th>合計箱数</th><th>合計金額</th></tr></thead>
+        <tbody id="sdBody"></tbody>
+      </table></div>
+      <div id="sdTotal" style="text-align:right;font-weight:700;color:var(--primary);margin-top:6px;font-size:14px"></div>
+    </div>
   </div>
   <div class="card" style="margin-top:10px">
     <div class="section-title">&#x1F4C8; 収益グラフ</div>
@@ -866,7 +912,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1805';
+var APP_VERSION='20260526-1809';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2970,27 +3016,168 @@ function buildSettlementView(){
     renderSettlements([]);
   });
 }
+// 精算ビュー切り替え
+var _settlementCache=[];
+function switchSettlementView(v){
+  ['detail','monthly','daily'].forEach(function(x){
+    var btn=document.getElementById('ss_'+x+'_btn');
+    var panel=document.getElementById('ss_'+x+'_panel');
+    if(btn)btn.classList.toggle('active',x===v);
+    if(panel)panel.style.display=x===v?'':'none';
+  });
+  if(v==='detail')renderSettlements(_settlementCache);
+  else if(v==='monthly')buildMonthlySettlement();
+  else if(v==='daily')buildDailySettlement();
+}
+function buildMonthlySettlement(){
+  var ss=_settlementCache;
+  var fy=(document.getElementById('smYear')||{}).value||'';
+  var fm=(document.getElementById('smMarket')||{}).value||'';
+  var ff=(document.getElementById('smFlower')||{}).value||'';
+  // ドロップダウン更新
+  var years={},mkts={},fls={};
+  ss.forEach(function(s){
+    if(s.settlement_date)years[s.settlement_date.slice(0,4)]=true;
+    if(s.market)mkts[s.market]=true;
+    (s.items||[]).forEach(function(it){if(it.flower)fls[it.flower]=true;});
+  });
+  updateSelect('smYear',Object.keys(years).sort().reverse().map(function(y){return{val:y,label:y+'年'};}), 'すべての年');
+  updateSelect('smMarket',Object.keys(mkts).sort(),'すべての市場');
+  updateSelect('smFlower',Object.keys(fls).sort(),'すべての品目');
+  if(fy)(document.getElementById('smYear')||{value:''}).value=fy;
+  if(fm)(document.getElementById('smMarket')||{value:''}).value=fm;
+  if(ff)(document.getElementById('smFlower')||{value:''}).value=ff;
+  fy=(document.getElementById('smYear')||{}).value||'';
+  fm=(document.getElementById('smMarket')||{}).value||'';
+  ff=(document.getElementById('smFlower')||{}).value||'';
+  // 月別集計
+  var monthly={};
+  ss.forEach(function(s){
+    if(!s.settlement_date)return;
+    if(fy&&s.settlement_date.slice(0,4)!==fy)return;
+    if(fm&&s.market!==fm)return;
+    var ym=s.settlement_date.slice(0,7);
+    if(!monthly[ym])monthly[ym]={ym:ym,mkts:{},boxes:0,amount:0,flowers:{}};
+    monthly[ym].mkts[s.market]=true;
+    (s.items||[]).forEach(function(it){
+      if(ff&&it.flower!==ff)return;
+      monthly[ym].boxes+=(it.boxes||0);
+      monthly[ym].amount+=(it.amount||0);
+      monthly[ym].flowers[it.flower]=(monthly[ym].flowers[it.flower]||0)+(it.amount||0);
+    });
+  });
+  var rows=Object.values(monthly).sort(function(a,b){return b.ym>a.ym?1:-1;});
+  var tbody=document.getElementById('smBody');
+  if(!tbody)return;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#aaa;padding:16px">データがありません</td></tr>';document.getElementById('smTotal').textContent='';return;}
+  var grandTotal=rows.reduce(function(a,r){return a+r.amount;},0);
+  tbody.innerHTML=rows.map(function(m){
+    var top=Object.entries(m.flowers).sort(function(a,b){return b[1]-a[1];}).slice(0,3)
+      .map(function(e){return e[0]+'<span style="color:#aaa;font-size:10px">('+e[1].toLocaleString()+'円)</span>';}).join('　');
+    return'<tr>'+
+      '<td><strong>'+m.ym.replace('-','年')+'月</strong></td>'+
+      '<td style="text-align:center">'+Object.keys(m.mkts).length+'市場</td>'+
+      '<td style="text-align:center">'+m.boxes+'箱</td>'+
+      '<td style="text-align:right;font-weight:700;color:var(--primary)">'+m.amount.toLocaleString()+'円</td>'+
+      '<td style="font-size:11px;line-height:1.8">'+top+'</td></tr>';
+  }).join('');
+  document.getElementById('smTotal').textContent='合計金額: '+grandTotal.toLocaleString()+'円';
+}
+function buildDailySettlement(){
+  var ss=_settlementCache;
+  var fy=(document.getElementById('sdYear')||{}).value||'';
+  var fm=(document.getElementById('sdMonth')||{}).value||'';
+  var fmkt=(document.getElementById('sdMarket')||{}).value||'';
+  var ff=(document.getElementById('sdFlower')||{}).value||'';
+  // ドロップダウン更新
+  var years={},months={},mkts={},fls={};
+  ss.forEach(function(s){
+    if(!s.settlement_date)return;
+    if(fy&&s.settlement_date.slice(0,4)!==fy)return;
+    years[s.settlement_date.slice(0,4)]=true;
+    months[s.settlement_date.slice(0,7)]=true;
+    if(s.market)mkts[s.market]=true;
+    (s.items||[]).forEach(function(it){if(it.flower)fls[it.flower]=true;});
+  });
+  updateSelect('sdYear',Object.keys(years).sort().reverse().map(function(y){return{val:y,label:y+'年'};}), 'すべての年');
+  updateSelect('sdMonth',Object.keys(months).sort().reverse().map(function(m){return{val:m,label:m.replace('-','年')+'月'};}), 'すべての月');
+  updateSelect('sdMarket',Object.keys(mkts).sort(),'すべての市場');
+  updateSelect('sdFlower',Object.keys(fls).sort(),'すべての品目');
+  if(fy)(document.getElementById('sdYear')||{}).value=fy;
+  if(fm)(document.getElementById('sdMonth')||{}).value=fm;
+  if(fmkt)(document.getElementById('sdMarket')||{}).value=fmkt;
+  if(ff)(document.getElementById('sdFlower')||{}).value=ff;
+  fy=(document.getElementById('sdYear')||{}).value||'';
+  fm=(document.getElementById('sdMonth')||{}).value||'';
+  fmkt=(document.getElementById('sdMarket')||{}).value||'';
+  ff=(document.getElementById('sdFlower')||{}).value||'';
+  // 日別集計
+  var daily={};
+  ss.forEach(function(s){
+    if(!s.settlement_date)return;
+    if(fy&&s.settlement_date.slice(0,4)!==fy)return;
+    if(fm&&s.settlement_date.slice(0,7)!==fm)return;
+    if(fmkt&&s.market!==fmkt)return;
+    var d=s.settlement_date;
+    if(!daily[d])daily[d]={date:d,mkts:{},boxes:0,amount:0,items:{}};
+    daily[d].mkts[s.market]=true;
+    (s.items||[]).forEach(function(it){
+      if(ff&&it.flower!==ff)return;
+      var key=(it.flower||'')+(it.variety?' '+it.variety:'')+(it.grade?' ['+it.grade+']':'');
+      if(!daily[d].items[key])daily[d].items[key]={label:key,mkt:s.market,boxes:0,amount:0};
+      daily[d].items[key].boxes+=(it.boxes||0);
+      daily[d].items[key].amount+=(it.amount||0);
+      daily[d].boxes+=(it.boxes||0);
+      daily[d].amount+=(it.amount||0);
+    });
+  });
+  var rows=Object.values(daily).sort(function(a,b){return b.date>a.date?1:-1;});
+  var tbody=document.getElementById('sdBody');
+  if(!tbody)return;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#aaa;padding:16px">データがありません</td></tr>';document.getElementById('sdTotal').textContent='';return;}
+  var grandTotal=rows.reduce(function(a,r){return a+r.amount;},0);
+  tbody.innerHTML=rows.map(function(d){
+    var mktStr=Object.keys(d.mkts).map(function(m){return m.replace('花市場','');}).join('・');
+    var items=Object.values(d.items).sort(function(a,b){return b.amount-a.amount;})
+      .map(function(i){return i.label+'<span style="color:#aaa;font-size:10px"> '+i.amount.toLocaleString()+'円</span>';}).join('<br>');
+    return'<tr>'+
+      '<td style="white-space:nowrap;vertical-align:top"><strong>'+d.date+'</strong></td>'+
+      '<td style="font-size:11px;vertical-align:top">'+mktStr+'</td>'+
+      '<td style="font-size:11px;line-height:1.9;vertical-align:top">'+items+'</td>'+
+      '<td style="text-align:center;vertical-align:top">'+d.boxes+'箱</td>'+
+      '<td style="text-align:right;font-weight:700;color:var(--primary);vertical-align:top">'+d.amount.toLocaleString()+'円</td>'+
+      '</tr>';
+  }).join('');
+  document.getElementById('sdTotal').textContent='合計金額: '+grandTotal.toLocaleString()+'円';
+}
 function renderSettlements(settlements){
+  _settlementCache=settlements; // キャッシュ（月別・日別ビューで再利用）
   // フィルタオプション更新
-  var markets={},years={},flowers={};
+  var markets={},years={},months={},flowers={};
   settlements.forEach(function(s){
     if(s.market)markets[s.market]=true;
-    if(s.settlement_date)years[s.settlement_date.slice(0,4)]=true;
+    if(s.settlement_date){
+      years[s.settlement_date.slice(0,4)]=true;
+      months[s.settlement_date.slice(0,7)]=true;
+    }
     (s.items||[]).forEach(function(it){if(it.flower)flowers[it.flower]=true;});
   });
   updateSelect('sMarket',Object.keys(markets).sort(),'すべての市場');
   updateSelect('sYear',  Object.keys(years).sort().reverse().map(function(y){return{val:y,label:y+'年'};}), 'すべての年');
+  updateSelect('sMonth', Object.keys(months).sort().reverse().map(function(m){return{val:m,label:m.replace('-','年')+'月'};}), 'すべての月');
   updateSelect('sFlower',Object.keys(flowers).sort(),'すべての品目');
 
   var fMkt  =(document.getElementById('sMarket')||{}).value||'';
   var fYear =(document.getElementById('sYear')||{}).value||'';
+  var fMonth=(document.getElementById('sMonth')||{}).value||'';
   var fFlower=(document.getElementById('sFlower')||{}).value||'';
 
   // フラット行に展開
   var rows=[];
   settlements.forEach(function(s){
-    if(fMkt  && s.market!==fMkt)return;
-    if(fYear && (!s.settlement_date||s.settlement_date.slice(0,4)!==fYear))return;
+    if(fMkt   && s.market!==fMkt)return;
+    if(fYear  && (!s.settlement_date||s.settlement_date.slice(0,4)!==fYear))return;
+    if(fMonth && (!s.settlement_date||s.settlement_date.slice(0,7)!==fMonth))return;
     (s.items||[]).forEach(function(it){
       if(fFlower && it.flower!==fFlower)return;
       rows.push({sid:s.id,date:s.settlement_date||'',market:s.market||'',
