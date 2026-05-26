@@ -117,6 +117,11 @@
   .item-input-row{display:flex;gap:4px;align-items:center}
   .item-input-row input,.item-input-row select{font-size:16px;padding:8px 8px;min-width:unset}
   input.missing,select.missing{border-color:#d4a040!important;background:#fef8e8!important;box-shadow:0 0 0 2px rgba(212,160,64,0.25)}
+  /* 不自然な入力値の警告スタイル */
+  input.input-warn,select.input-warn{border-color:#fb8c00!important;background:#fff8e1!important;box-shadow:0 0 0 2px rgba(251,140,0,0.18)!important;transition:border-color 0.2s,background 0.2s}
+  input.input-error,select.input-error{border-color:#e53935!important;background:#ffebee!important;box-shadow:0 0 0 2px rgba(229,57,53,0.18)!important;transition:border-color 0.2s,background 0.2s}
+  .item-card.has-warn{border-left:4px solid #fb8c00}
+  .item-card.has-error{border-left:4px solid #e53935}
   .full-col{grid-column:span 2}
   .add-btn{background:var(--rose-light);border:1.5px dashed var(--rose);border-radius:8px;padding:10px;width:100%;cursor:pointer;color:var(--rose-dark);font-size:14px;font-weight:600;transition:background 0.2s;margin-top:4px;min-height:44px;font-family:'Noto Sans JP',sans-serif}
   .add-btn:hover{background:#edd8de}
@@ -923,7 +928,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-1825';
+var APP_VERSION='20260526-1843';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1393,6 +1398,61 @@ function updateVarietyList(id,flowerName){
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+
+// ── 入力バリデーション（不自然な値をハイライト） ─────────────────────────
+function _parseInputNum(s){
+  if(!s)return NaN;
+  var m=String(s).match(/(\d+(\.\d+)?)/);
+  return m?parseFloat(m[1]):NaN;
+}
+function _setInputState(el,state,hasWarnRef,hasErrRef){
+  if(!el)return;
+  el.classList.remove('input-warn','input-error');
+  if(state==='warn'){el.classList.add('input-warn');hasWarnRef.v=true;}
+  else if(state==='error'){el.classList.add('input-error');hasErrRef.v=true;}
+}
+function checkItemInputs(id){
+  var card=document.getElementById('item-'+id);
+  var hw={v:false},he={v:false};
+
+  // 規格(cm)：標準30~120cm・10の倍数。20未満/150超はエラー
+  var sEl=document.getElementById('s_'+id);
+  if(sEl){
+    var sv=_parseInputNum(sEl.value);
+    if(sEl.value.trim()===''){_setInputState(sEl,'',hw,he);}
+    else if(isNaN(sv)||sv<20||sv>150){_setInputState(sEl,'error',hw,he);}
+    else if(sv%10!==0||sv<30){_setInputState(sEl,'warn',hw,he);}
+    else{_setInputState(sEl,'',hw,he);}
+  }
+
+  // 1箱あたりの本数：一般的に5~200本。500超/1未満はエラー、201以上か5の倍数でない(>10)は警告
+  var cEl=document.getElementById('c_'+id);
+  if(cEl){
+    var cv=_parseInputNum(cEl.value);
+    if(cEl.value.trim()===''){_setInputState(cEl,'',hw,he);}
+    else if(isNaN(cv)||cv<1||cv>500){_setInputState(cEl,'error',hw,he);}
+    else if(cv>200||(cv>10&&cv%5!==0)){_setInputState(cEl,'warn',hw,he);}
+    else{_setInputState(cEl,'',hw,he);}
+  }
+
+  // 箱数：一般的に1~50箱。200超はエラー、51以上は警告
+  var bEl=document.getElementById('b_'+id);
+  if(bEl){
+    var bv=_parseInputNum(bEl.value);
+    if(bEl.value.trim()===''){_setInputState(bEl,'',hw,he);}
+    else if(isNaN(bv)||bv<1||bv>200){_setInputState(bEl,'error',hw,he);}
+    else if(bv>50){_setInputState(bEl,'warn',hw,he);}
+    else{_setInputState(bEl,'',hw,he);}
+  }
+
+  // カード枠の色更新
+  if(card){
+    card.classList.remove('has-warn','has-error');
+    if(he.v)card.classList.add('has-error');
+    else if(hw.v)card.classList.add('has-warn');
+  }
+}
+
 function addItem(data){
   data=data||{}; itemCount++; var id=itemCount;
   var container=document.getElementById('itemsContainer');
@@ -1444,13 +1504,15 @@ function addItem(data){
       if(gs&&gs.value!=='外'){gs.value='外';onGradeChange(id);}
     }
   });
-  ['s','c','b'].forEach(function(k){var el=document.getElementById(k+'_'+id);if(el)el.addEventListener('change',function(){refreshSummary(id);});});
+  ['s','c','b'].forEach(function(k){var el=document.getElementById(k+'_'+id);if(el){el.addEventListener('change',function(){refreshSummary(id);checkItemInputs(id);});el.addEventListener('input',function(){checkItemInputs(id);});}});
   // 数字だけ入力されたら単位を自動付与（本数→本 / 箱数→箱）
   var cEl=document.getElementById('c_'+id);
-  if(cEl)cEl.addEventListener('blur',function(){var v=cEl.value.trim();if(/^\d+$/.test(v)){cEl.value=v+'本';refreshSummary(id);}});
+  if(cEl)cEl.addEventListener('blur',function(){var v=cEl.value.trim();if(/^\d+$/.test(v)){cEl.value=v+'本';refreshSummary(id);}checkItemInputs(id);});
   var bEl=document.getElementById('b_'+id);
-  if(bEl)bEl.addEventListener('blur',function(){var v=bEl.value.trim();if(/^\d+$/.test(v)){bEl.value=v+'箱';refreshSummary(id);}});
+  if(bEl)bEl.addEventListener('blur',function(){var v=bEl.value.trim();if(/^\d+$/.test(v)){bEl.value=v+'箱';refreshSummary(id);}checkItemInputs(id);});
   var gsel=document.getElementById('g_'+id);if(gsel)gsel.addEventListener('change',function(){refreshSummary(id);});
+  // 初期値がある場合は即チェック
+  if(data.size||data.count||data.boxes){setTimeout(function(){checkItemInputs(id);},0);}
   return id;
 }
 function onGradeChange(id){var g=document.getElementById('g_'+id)?document.getElementById('g_'+id).value:'';var badge=document.getElementById('gbadge_'+id);if(badge){badge.textContent=g;badge.className='badge'+(g==='外'?' ext':'');}}
