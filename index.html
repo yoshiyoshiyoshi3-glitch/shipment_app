@@ -260,6 +260,8 @@
         <option value="1800">やや長め（1.8秒）</option>
         <option value="2800">長め（2.8秒）</option>
         <option value="4000">とても長め（4秒）</option>
+        <option value="6000">超長め（6秒）</option>
+        <option value="8000">最長（8秒）</option>
       </select>
     </div>
   </div>
@@ -981,6 +983,23 @@ function _getEffectiveParseDelay(text){
   if(lastUsedName&&FLOWER_PARSE_DELAY[lastUsedName])return FLOWER_PARSE_DELAY[lastUsedName];
   return PARSE_DELAY;
 }
+// テキストに品目名+本数+箱数が揃っているか（揃っていれば即確定できる）
+function _isItemComplete(text){
+  if(!text.trim())return false;
+  var t=kanjiToNum(text).replace(/[・、,，「」]/g,' ').replace(/\s+/g,' ').trim();
+  var hasCount=/\d+\s*(?:本|束)/.test(t);
+  var hasBoxes=/\d+\s*箱/.test(t);
+  if(!hasCount||!hasBoxes)return false;
+  if(lastUsedName)return true; // 品目名はすでにセット済み
+  for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){if(t.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0)return true;}
+  return false;
+}
+// テキストから品目名（canonical）を抽出する
+function _extractFlowerFromText(text){
+  var t=applyCorrections(text);
+  for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){if(t.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0)return FLOWER_NAME_MAP[fi].canonical;}
+  return '';
+}
 
 // ── Speech Recognition ───────────────────────────────────────────────
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -993,11 +1012,12 @@ var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 var recGeneration=0,recWatchdog=null;
 // AudioContext+MediaRecorderでマイクをアクティブ状態に維持する
 var lastUsedName='',pendingText='',parseTimer=null,PARSE_DELAY=1200;
-try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)PARSE_DELAY=_pd;}catch(e){}
+var _pendingPartialItem=''; // 本数・箱数が未確認で保留中のテキスト
+try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=8000)PARSE_DELAY=_pd2;}catch(e){}
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260527-0945';
+var APP_VERSION='20260527-0953';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1154,17 +1174,44 @@ function initRec(){
       procIdx=i+1;
       if(pendingCb){var cb=pendingCb;pendingCb=null;stopRecUI();cb(text);}
       else if(continuousMode){
-        pendingText+=(pendingText?' ':'')+text;
+        // ── 保留中テキストがあれば今の入力と統合 ─────────────────
+        if(_pendingPartialItem){
+          var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
+          if(_nf&&_pf&&_nf!==_pf){
+            // 異なる品目 → 保留分を先に追加して新品目へ
+            parseAndAddItem(_pendingPartialItem);updateLastNameHint();
+            _pendingPartialItem='';pendingText=text;
+          } else {
+            // 同じ品目の続き → テキストを統合
+            pendingText=_pendingPartialItem+' '+text;_pendingPartialItem='';
+          }
+        } else {
+          pendingText+=(pendingText?' ':'')+text;
+        }
         clearTimeout(parseTimer);
         var _pd=_getEffectiveParseDelay(pendingText);
+        // 本数+箱数が揃っていれば0.6秒で即確定、未完成なら待ち時間いっぱい待つ
+        var _delay=_isItemComplete(pendingText)?Math.min(600,_pd):_pd;
         parseTimer=setTimeout(function(){
-          var combined=pendingText.trim().replace(/[。、！？]+$/,''); pendingText='';parseTimer=null;
-          if(combined){parseAndAddItem(combined);setStatus('「'+combined+'」を追加 — 次を話してください','ok');updateLastNameHint();}
-        },_pd);
+          parseTimer=null;
+          var combined=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
+          if(!combined)return;
+          if(_isItemComplete(combined)){
+            parseAndAddItem(combined);setStatus('「'+combined+'」を追加 — 次を話してください','ok');updateLastNameHint();
+          } else {
+            // 未完成 → 保留して続きを促す（品目名だけ/品種名だけ など）
+            _pendingPartialItem=combined;
+            var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
+            setStatus('⏳ 続きをどうぞ（本数・箱数） ▶「'+_hint+'」','recording');
+          }
+        },_delay);
       }
     }
-    if(interim){setStatus('認識中…「'+(pendingText?pendingText+' ':'')+interim+'」','recording');}
-    else if(pendingText&&continuousMode){setStatus('認識中…「'+pendingText+'」','recording');}
+    if(interim){
+      var _pre=_pendingPartialItem?'【'+(_pendingPartialItem.length>14?_pendingPartialItem.slice(0,14)+'…':_pendingPartialItem)+'】 ':(pendingText?pendingText+' ':'');
+      setStatus('認識中…「'+_pre+interim+'」','recording');
+    } else if(pendingText&&continuousMode){setStatus('認識中…「'+pendingText+'」','recording');}
+    // _pendingPartialItem のみの場合はタイマーが設定したステータスを維持する
   };
   rec.onerror=function(e){
     if(recGeneration!==myGen)return;
@@ -1380,11 +1427,14 @@ function stopRecUI(){
 }
 function stopRecAll(){
   continuousMode=false;pendingCb=null;
-  clearTimeout(restartTimer);restartTimer=null; // 再起動タイマーもキャンセル
+  clearTimeout(restartTimer);restartTimer=null;
   clearTimeout(recWatchdog);recWatchdog=null;
   clearTimeout(parseTimer);parseTimer=null;
-  if(pendingText.trim()){var t=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';parseAndAddItem(t);setStatus('「'+t+'」を追加しました');}
-  else{pendingText='';setStatus('連続入力を停止しました');}
+  // 保留中テキスト＋pendingTextを統合して確定
+  var _allPending=((_pendingPartialItem?_pendingPartialItem+' ':'')+pendingText).trim();
+  _pendingPartialItem='';pendingText='';
+  if(_allPending){var t=_allPending.replace(/[。、！？]+$/,'');parseAndAddItem(t);setStatus('「'+t+'」を追加しました');}
+  else{setStatus('連続入力を停止しました');}
   try{rec&&rec.stop();}catch(e){}
   stopRecUI();
 }
@@ -2620,7 +2670,7 @@ function buildFlowerDefaultsUI(){
     var delaySel=
       '<select class="fdef-delay" style="font-size:12px;padding:5px 3px;border:1px solid var(--border);border-radius:4px;background:#fff;width:82px">'+
       '<option value="">既定値</option>'+
-      [['600','0.6秒'],['1200','1.2秒'],['1800','1.8秒'],['2800','2.8秒'],['4000','4秒']].map(function(pair){return'<option value="'+pair[0]+'"'+(curDelay==pair[0]?' selected':'')+'>'+pair[1]+'</option>';}).join('')+
+      [['600','0.6秒'],['1200','1.2秒'],['1800','1.8秒'],['2800','2.8秒'],['4000','4秒'],['6000','6秒'],['8000','8秒']].map(function(pair){return'<option value="'+pair[0]+'"'+(curDelay==pair[0]?' selected':'')+'>'+pair[1]+'</option>';}).join('')+
       '</select>';
     var tr=document.createElement('tr');
     tr.dataset.name=name;
