@@ -849,7 +849,7 @@ var SPEECH_CORRECTIONS=[
   [/2[Ff][アウをのは]*/g,'2F'],[/二[Ff][アウをのは]*/g,'2F'],
   [/スペシャル/g,'SP'],[/えすぴー/gi,'SP'],[/エスピー/g,'SP'],
   // ── 等級補正 ──
-  [/しゅう/g,'秀'],[/ゆう/g,'優'],[/りょう/g,'良'],
+  [/(?<![ぁ-ん])しゅう(?![ぁ-ん])/g,'秀'],[/(?<![ぁ-ん])ゆう(?![ぁ-ん])/g,'優'],[/(?<![ぁ-ん])りょう(?![ぁ-ん])/g,'良'],
   [/そと(?=\s|$)/g,'外'],[/きかくがい/g,'外'],
   // ── 数量補正 ──
   [/(\d+)ほん/g,'$1本'],[/(\d+)ぼん/g,'$1本'],[/(\d+)ぽん/g,'$1本'],
@@ -980,7 +980,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260526-2048';
+var APP_VERSION='20260527-0913';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1400,7 +1400,7 @@ function parseAndAddItem(text){
   if(matched&&!variety.trim()&&!count&&!boxes&&!note){lastUsedName=name;updateLastNameHint();setStatus('品目「'+name+'」をセットしました。続けて品種・本数・箱数をどうぞ','ok');return;}
   // 品種名を既知マスタへ近似マッチで補正（聞き間違いを吸収）
   if(name&&variety){variety=snapVariety(name,variety);}
-  grade=gradeForced?'外':(grade||'A');
+  grade=gradeForced?'外':(grade||(name&&DEFAULT_GRADE[name])||'A');
   // 輪数パース（音声テキストから「3F」「2F」「SP」を検出）
   var rings='';
   var ringsMatch=t.match(/([23][Ff][↑＋+]?|[Ss][Pp])/);
