@@ -229,6 +229,11 @@
   <button onclick="doUpdate()" style="background:#43a047;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:13px;cursor:pointer;font-weight:600">🔄 今すぐ更新</button>
   <button onclick="document.getElementById('updateBar').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#558b2f">&#x2715;</button>
 </div>
+<div id="urlChangedBar" style="display:none;background:linear-gradient(90deg,#fff3e0,#fff8e1);border-bottom:2px solid #ff9800;padding:10px 14px;font-size:13px;color:#bf360c;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="flex:1">&#x1F501; <strong>アプリのURLが変更されました。</strong>新しいURLを開いて「ホーム画面に追加」し直してください。</span>
+  <button id="urlChangedBtn" onclick="location.href=_newAppUrl" style="background:#ef6c00;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;cursor:pointer;font-weight:700;min-height:44px;touch-action:manipulation">&#x27A1;&#xFE0F; 新しいURLへ移動</button>
+  <button onclick="document.getElementById('urlChangedBar').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#bf360c;padding:0 4px">&#x2715;</button>
+</div>
 <div id="noSupport" class="no-support" style="display:none;">&#x26A0; このブラウザでは音声認識に対応していません。手動入力をご使用ください。</div>
 <div id="statusBar" class="status-bar">準備完了 — ボタンを押して話しかけてください</div>
 <div id="micHelpBox" style="display:none;background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 14px;font-size:13px;color:#5d4037;line-height:1.7;margin-bottom:8px"><button onclick="document.getElementById('micHelpBox').style.display='none'" style="float:right;background:none;border:none;font-size:16px;cursor:pointer;color:#888">✕</button></div>
@@ -980,7 +985,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260527-0913';
+var APP_VERSION='20260527-0921';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1002,10 +1007,62 @@ function installApp(){
   }
 }
 
-// ── アップデートチェック ──────────────────────────────────────────────
+// ── アップデートチェック & URL移転検知 ─────────────────────────────────
+// 自分のベースURL（例: https://user.github.io/repo/）
+var _appBaseUrl=(function(){try{return new URL('./',location.href).href;}catch(e){return location.href.replace(/[?#].*$/,'').replace(/[^/]+$/,'');}})();
+var _newAppUrl=''; // URL移転先（バナーのボタンで使用）
+
+// Gistに記録されているリダイレクト先を確認し、自分と違えばバナー表示
+function checkGistRedirect(){
+  if(!_gistId)return;
+  var headers=_gistToken?{'Authorization':'token '+_gistToken}:{};
+  fetch('https://api.github.com/gists/'+_gistId+'?_='+Date.now(),{headers:headers,cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(g){
+      var f=g.files&&g.files['app_redirect.json'];
+      if(!f)return;
+      var d=JSON.parse(f.content||'{}');
+      if(!d.url)return;
+      if(d.url!==_appBaseUrl){_newAppUrl=d.url;showUrlChangedBanner(d.url);}
+    })
+    .catch(function(){});
+}
+function showUrlChangedBanner(url){
+  _newAppUrl=url;
+  var bar=document.getElementById('urlChangedBar');
+  if(bar){bar.style.display='flex';}
+}
+
+// 自分のバージョンがGist記録より新しければapp_redirect.jsonを更新する
+// （upload.pyが更新した後の初回アクセスでも発動するバックアップ機構）
+function _updateGistRedirectIfNewer(){
+  if(!_gistToken||!_gistId)return;
+  var myVer=APP_VERSION;
+  var hdrs={'Authorization':'token '+_gistToken,'Content-Type':'application/json'};
+  // まず現在のGist内バージョンを確認
+  fetch('https://api.github.com/gists/'+_gistId,{headers:hdrs,cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(g){
+      var f=g.files&&g.files['app_redirect.json'];
+      var gistVer='';
+      if(f){try{gistVer=JSON.parse(f.content||'{}').v||'';}catch(e){}}
+      // バージョン文字列を辞書順比較（YYYYMMDD-HHMM形式なので正しく比較できる）
+      if(myVer>gistVer){
+        // 自分のほうが新しい → Gistを更新
+        fetch('https://api.github.com/gists/'+_gistId,{
+          method:'PATCH',headers:hdrs,
+          body:JSON.stringify({files:{'app_redirect.json':{content:JSON.stringify({url:_appBaseUrl,v:myVer})}}})
+        }).catch(function(){});
+      }
+    })
+    .catch(function(){});
+}
+
 function checkAppUpdate(showOk){
   var statusEl=document.getElementById('updateCheckStatus');
   if(statusEl)statusEl.textContent='確認中…';
+  // URLが変わっていないか確認（Gist経由）
+  checkGistRedirect();
   fetch('./version.json?_='+Date.now(),{cache:'no-store'})
     .then(function(r){return r.json();})
     .then(function(data){
@@ -1039,6 +1096,8 @@ function doUpdate(){
 // ページ読み込み完了後、バックグラウンドでサイレント確認
 window.addEventListener('load',function(){
   setTimeout(function(){checkAppUpdate(false);},4000);
+  // 新しいURLで開かれた場合、Gistのリダイレクト情報を更新（新バージョンのみ書き込む）
+  setTimeout(function(){_updateGistRedirectIfNewer();},8000);
   // 読み上げ速度セレクタを保存値で初期化
   var rateEl=document.getElementById('ttsRateSelect');
   if(rateEl)rateEl.value=String(_ttsRate);
