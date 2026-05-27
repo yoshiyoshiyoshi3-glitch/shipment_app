@@ -623,7 +623,7 @@
       設定した値は音声入力・手動入力どちらにも反映されます。空欄のままにすると既定値なし（手動入力）になります。
     </div>
     <div style="overflow-x:auto">
-      <table class="stat-table" id="flowerDefaultsTable" style="min-width:500px">
+      <table class="stat-table" id="flowerDefaultsTable" style="min-width:580px">
         <thead>
           <tr>
             <th style="text-align:left;min-width:100px">品目名</th>
@@ -631,6 +631,7 @@
             <th style="min-width:80px">輪数</th>
             <th style="min-width:100px">1箱の本数</th>
             <th style="min-width:80px">等級<br><span style="font-size:10px;font-weight:400">規定値</span></th>
+            <th style="min-width:90px">音声<br><span style="font-size:10px;font-weight:400">待ち時間</span></th>
           </tr>
         </thead>
         <tbody id="flowerDefaultsBody"></tbody>
@@ -787,6 +788,7 @@ var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワ�
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
 var DEFAULT_COUNT = {};
 var DEFAULT_GRADE = {};
+var FLOWER_PARSE_DELAY = {}; // 品目ごとの音声待ち時間（ms）
 var RINGS_MASTER = ['3F↑','2F','SP'];
 // 品目ごとの規定値（設定タブで編集・localStorageに保存）
 var FLOWER_DEFAULTS = {};
@@ -795,7 +797,7 @@ var FLOWER_DEFAULTS = {};
   _applyFlowerDefaults();
 })();
 function _applyFlowerDefaults(){
-  DEFAULT_COUNT={};DEFAULT_GRADE={};
+  DEFAULT_COUNT={};DEFAULT_GRADE={};FLOWER_PARSE_DELAY={};
   for(var n in FLOWER_DEFAULTS){
     if(!FLOWER_DEFAULTS.hasOwnProperty(n))continue;
     var d=FLOWER_DEFAULTS[n];
@@ -804,6 +806,7 @@ function _applyFlowerDefaults(){
     else if(d.rings===''&&n in DEFAULT_RINGS)delete DEFAULT_RINGS[n];
     if(d.count)DEFAULT_COUNT[n]=d.count;
     if(d.grade)DEFAULT_GRADE[n]=d.grade;
+    if(d.parseDelay){var pd=parseInt(d.parseDelay);if(pd>=600)FLOWER_PARSE_DELAY[n]=pd;}
   }
 }
 var FLOWER_NAME_MAP = [
@@ -970,6 +973,15 @@ function snapVariety(name,variety){
   return variety;
 }
 
+// テキストまたはlastUsedNameに対応する品目の待ち時間を返す（なければグローバル値）
+function _getEffectiveParseDelay(text){
+  for(var fn in FLOWER_PARSE_DELAY){
+    if(FLOWER_PARSE_DELAY.hasOwnProperty(fn)&&text.indexOf(fn)>=0)return FLOWER_PARSE_DELAY[fn];
+  }
+  if(lastUsedName&&FLOWER_PARSE_DELAY[lastUsedName])return FLOWER_PARSE_DELAY[lastUsedName];
+  return PARSE_DELAY;
+}
+
 // ── Speech Recognition ───────────────────────────────────────────────
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var rec=null,pendingCb=null,currentMicEl=null,continuousMode=false,procIdx=0;
@@ -985,7 +997,7 @@ try{var _pd=parseInt(localStorage.getItem('parseDelay'));if(_pd>=600&&_pd<=8000)
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260527-0921';
+var APP_VERSION='20260527-0945';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1144,10 +1156,11 @@ function initRec(){
       else if(continuousMode){
         pendingText+=(pendingText?' ':'')+text;
         clearTimeout(parseTimer);
+        var _pd=_getEffectiveParseDelay(pendingText);
         parseTimer=setTimeout(function(){
           var combined=pendingText.trim().replace(/[。、！？]+$/,''); pendingText='';parseTimer=null;
           if(combined){parseAndAddItem(combined);setStatus('「'+combined+'」を追加 — 次を話してください','ok');updateLastNameHint();}
-        },PARSE_DELAY);
+        },_pd);
       }
     }
     if(interim){setStatus('認識中…「'+(pendingText?pendingText+' ':'')+interim+'」','recording');}
@@ -2603,6 +2616,12 @@ function buildFlowerDefaultsUI(){
       '<option value="">--</option>'+
       ['A','B','秀','優','良','外'].map(function(v){return'<option value="'+v+'"'+(curGrade===v?' selected':'')+'>'+v+'</option>';}).join('')+
       '</select>';
+    var curDelay=d.parseDelay||'';
+    var delaySel=
+      '<select class="fdef-delay" style="font-size:12px;padding:5px 3px;border:1px solid var(--border);border-radius:4px;background:#fff;width:82px">'+
+      '<option value="">既定値</option>'+
+      [['600','0.6秒'],['1200','1.2秒'],['1800','1.8秒'],['2800','2.8秒'],['4000','4秒']].map(function(pair){return'<option value="'+pair[0]+'"'+(curDelay==pair[0]?' selected':'')+'>'+pair[1]+'</option>';}).join('')+
+      '</select>';
     var tr=document.createElement('tr');
     tr.dataset.name=name;
     tr.innerHTML=
@@ -2610,7 +2629,8 @@ function buildFlowerDefaultsUI(){
       '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',60)+'</td>'+
       '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
       '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',84)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>';
+      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>'+
+      '<td style="text-align:center;padding:4px">'+delaySel+'</td>';
     tbody.appendChild(tr);
   });
 }
@@ -2624,9 +2644,10 @@ function saveFlowerDefaults(){
     var rings=row.querySelector('.fdef-rings').value;
     var count=(row.querySelector('.fdef-count').value||'').trim();
     var grade=row.querySelector('.fdef-grade').value;
+    var parseDelay=row.querySelector('.fdef-delay').value;
     // 数字のみなら単位を付与
     if(/^\d+$/.test(count))count=count+'本';
-    newDefs[name]={size:size,rings:rings,count:count,grade:grade};
+    newDefs[name]={size:size,rings:rings,count:count,grade:grade,parseDelay:parseDelay};
   });
   FLOWER_DEFAULTS=newDefs;
   localStorage.setItem('flowerDefaults',JSON.stringify(FLOWER_DEFAULTS));
