@@ -1024,7 +1024,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260528-1336';
+var APP_VERSION='20260528-1906';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1124,13 +1124,21 @@ function checkAppUpdate(showOk){
     });
 }
 function doUpdate(){
-  // SW キャッシュをすべて削除してリロード
-  var reload=function(){location.reload(true);};
-  if('caches' in window){
-    caches.keys().then(function(names){
-      return Promise.all(names.map(function(n){return caches.delete(n);}));
-    }).then(reload).catch(reload);
-  } else { reload(); }
+  // SW登録解除 → キャッシュ全削除 → タイムスタンプ付きURLでリロード（SW完全バイパス）
+  var reload=function(){location.href=location.href.split('?')[0]+'?_='+Date.now();};
+  var clearAndReload=function(){
+    if('caches' in window){
+      caches.keys().then(function(names){
+        return Promise.all(names.map(function(n){return caches.delete(n);}));
+      }).then(reload).catch(reload);
+    } else { reload(); }
+  };
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistration().then(function(reg){
+      if(reg){reg.unregister().then(clearAndReload).catch(clearAndReload);}
+      else{clearAndReload();}
+    }).catch(clearAndReload);
+  } else { clearAndReload(); }
 }
 // ページ読み込み完了後、バックグラウンドでサイレント確認
 window.addEventListener('load',function(){
