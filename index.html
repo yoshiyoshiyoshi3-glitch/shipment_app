@@ -1050,7 +1050,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260528-2004';
+var APP_VERSION='20260529-0832';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1854,22 +1854,37 @@ function goToStep2(){
 function goToStep3(){buildMarketSummaries();showTab('step3');}
 function calcEvenDist(total,n){var base=Math.floor(total/n),rem=total%n,arr=[];for(var i=0;i<n;i++)arr.push(base+(i<rem?1:0));return arr;}
 
-// ── まとめ箱（物理箱数オーバーライド） ──────────────────────────────────────
-function getPhysBoxes(itemId,mi){
-  var key=itemId+'_'+mi;
-  var pVal=_physBoxes[key]||0;
-  if(pVal>0)return pVal;
-  var dEl=document.getElementById('d_'+itemId+'_'+mi);
-  return parseInt(dEl?dEl.value:0)||0;
+// ── まとめ箱（共箱）─────────────────────────────────────────────────────────
+// _physBoxAssign[mi] = 物理箱の配列。各要素: {items:{itemId:qty,...}}
+// 物理箱は市場ごとに自由に増減、1つの物理箱に複数品目を混在配置できる
+
+function getMatomePhysTotal(mi){
+  return (_physBoxAssign[mi]&&_physBoxAssign[mi].length>0)?_physBoxAssign[mi].length:null;
+}
+function _getMarketItems(mi){
+  return getItems().filter(function(it){
+    if(!it.name)return false;
+    var el=document.getElementById('d_'+it.id+'_'+mi);
+    return parseInt(el?el.value:0)>0;
+  });
+}
+function _getAssignedQty(mi,itemId){
+  if(!_physBoxAssign[mi])return 0;
+  return _physBoxAssign[mi].reduce(function(s,box){return s+(box.items[itemId]||0);},0);
+}
+function _getLogicalQty(mi,itemId){
+  var el=document.getElementById('d_'+itemId+'_'+mi);
+  return parseInt(el?el.value:0)||0;
+}
+function _getRemaining(mi,itemId){
+  return _getLogicalQty(mi,itemId)-_getAssignedQty(mi,itemId);
 }
 
-// ── まとめ箱モーダル ──────────────────────────────────────────────────────
 function showMatomePanel(mi){
   _matomeCurrentMi=mi;
   var title=document.getElementById('matomePanelTitle');
-  if(title)title.textContent=MARKETS[mi]+'　まとめ設定';
-  buildMatomePanelBody(mi);
-  updateMatomeTotal();
+  if(title)title.textContent=MARKETS[mi]+'　まとめ箱設定';
+  _buildMatomePanel(mi);
   var overlay=document.getElementById('matomeOverlay');
   if(overlay){overlay.style.display='block';document.body.style.overflow='hidden';}
 }
@@ -1879,112 +1894,156 @@ function closeMatomePanel(){
   document.body.style.overflow='';
   _matomeCurrentMi=-1;
 }
-function buildMatomePanelBody(mi){
+function _buildMatomePanel(mi){
   var body=document.getElementById('matomePanelBody');
   if(!body)return;
   body.innerHTML='';
-  var items=getItems().filter(function(it){
-    if(!it.name)return false;
-    var el=document.getElementById('d_'+it.id+'_'+mi);
-    return parseInt(el?el.value:0)>0;
-  });
+  var items=_getMarketItems(mi);
   if(!items.length){
     body.innerHTML='<div style="text-align:center;color:#aaa;padding:24px;font-size:14px">'+MARKETS[mi]+'への振り分けがありません</div>';
-    return;
+    _updateMatomeFooter(mi);return;
   }
-  items.forEach(function(it){
-    var dEl=document.getElementById('d_'+it.id+'_'+mi);
-    var logical=parseInt(dEl?dEl.value:0)||0;
-    var key=it.id+'_'+mi;
-    var physVal=(_physBoxes[key]&&_physBoxes[key]>0)?_physBoxes[key]:logical;
-    physVal=Math.max(1,Math.min(physVal,logical));
-    var grade=it.grade||'';
-    var size=it.size?it.size+'cm':'';
-    var row=document.createElement('div');
-    row.className='matome-item-row';
-    row.dataset.itemId=it.id;
-    row.dataset.logical=logical;
-    row.innerHTML=
-      '<div style="flex:1;min-width:0;overflow:hidden">'+
-        '<span style="font-weight:600;font-size:13px">'+esc(it.name)+'</span>'+
-        '<span style="font-size:12px;color:#888;margin-left:4px">'+esc(it.variety||'')+'</span>'+
-        (grade?'<span class="badge'+(grade==='外'?' ext':'')+'" style="margin-left:4px;font-size:10px">'+esc(grade)+'</span>':'')+
-        (size?'<span style="font-size:11px;color:#aaa;margin-left:3px">'+esc(size)+'</span>':'')+
-      '</div>'+
-      '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0">'+
-        '<span style="font-size:11px;color:#aaa">'+logical+'箱→</span>'+
-        '<button class="matome-step-btn" onclick="matomeStep(this,-1)">－</button>'+
-        '<input type="number" class="matome-step-inp" value="'+physVal+'" min="1" max="'+logical+'" onchange="clampMatomeInput(this);updateMatomeTotal()">'+
-        '<button class="matome-step-btn" onclick="matomeStep(this,1)">＋</button>'+
-        '<span style="font-size:13px;color:#5a3e35;font-weight:600">箱</span>'+
-      '</div>';
-    body.appendChild(row);
-  });
+  if(!_physBoxAssign[mi])_physBoxAssign[mi]=[];
+  // ── 配置待ち表示 ──
+  var remDiv=document.createElement('div');
+  remDiv.style.cssText='background:#fdf5f0;border-radius:8px;padding:10px 12px;margin-bottom:10px';
+  remDiv.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:6px">配置待ち（まだ箱に入っていない論理箱数）</div>'+
+    '<div id="matomeRemPool" style="display:flex;flex-wrap:wrap;gap:6px">'+_remPoolHtml(mi,items)+'</div>';
+  body.appendChild(remDiv);
+  // ── 物理箱一覧 ──
+  var boxWrap=document.createElement('div');boxWrap.id='matomeBoxWrap';
+  _physBoxAssign[mi].forEach(function(box,bi){boxWrap.appendChild(_makeBoxCard(mi,bi,items));});
+  body.appendChild(boxWrap);
+  // ── 追加ボタン ──
+  var addDiv=document.createElement('div');
+  addDiv.style.cssText='text-align:center;margin:8px 0 4px';
+  addDiv.innerHTML='<button onclick="addMatomeBox()" style="background:#fff5f2;border:2px dashed #c4a090;border-radius:8px;padding:10px 20px;font-size:14px;color:#8b6458;cursor:pointer;width:100%;touch-action:manipulation;font-weight:600">＋ 箱を追加</button>';
+  body.appendChild(addDiv);
+  _updateMatomeFooter(mi);
 }
-function matomeStep(btn,delta){
-  var row=btn.closest('.matome-item-row');if(!row)return;
-  var inp=row.querySelector('.matome-step-inp');if(!inp)return;
-  var logical=parseInt(row.dataset.logical)||1;
-  var val=(parseInt(inp.value)||1)+delta;
-  inp.value=Math.max(1,Math.min(logical,val));
-  updateMatomeTotal();
+function _remPoolHtml(mi,items){
+  return items.map(function(it){
+    var rem=_getRemaining(mi,it.id);
+    var total=_getLogicalQty(mi,it.id);
+    var ok=rem===0;
+    var label=it.name.length>7?it.name.slice(0,7)+'…':it.name;
+    return '<span id="mrem_'+it.id+'" style="display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;'+
+      'background:'+(ok?'#e8f5e8':'#ffe8e0')+';border:1px solid '+(ok?'#90c490':'#e09070')+';color:'+(ok?'#2a6e2a':'#8b4535')+'">'+
+      esc(label)+' <span id="mremN_'+it.id+'">'+rem+'</span>/'+total+'箱'+(ok?' ✓':'')+'</span>';
+  }).join('');
 }
-function clampMatomeInput(inp){
-  var row=inp.closest('.matome-item-row');if(!row)return;
-  var logical=parseInt(row.dataset.logical)||1;
-  inp.value=Math.max(1,Math.min(logical,parseInt(inp.value)||1));
+function _makeBoxCard(mi,bi,items){
+  var box=_physBoxAssign[mi][bi];
+  var card=document.createElement('div');
+  card.id='matomeBoxCard_'+bi;
+  card.style.cssText='background:#fff;border:2px solid #ddd;border-radius:10px;padding:10px 12px;margin-bottom:10px';
+  var hdr='<div style="display:flex;align-items:center;margin-bottom:8px">'+
+    '<span style="font-weight:700;font-size:14px;color:#5a3e35">箱 '+(bi+1)+'</span>'+
+    '<button onclick="removeMatomeBox('+bi+')" style="margin-left:auto;background:#fff0f0;border:1px solid #e08080;border-radius:5px;padding:2px 8px;font-size:11px;color:#c62828;cursor:pointer;touch-action:manipulation">削除</button>'+
+    '</div>';
+  var tags=items.map(function(it){
+    var qty=box.items[it.id]||0;
+    var label=it.name.length>6?it.name.slice(0,6)+'…':it.name;
+    return '<span id="btag_'+bi+'_'+it.id+'" style="display:inline-flex;align-items:center;gap:2px;margin:3px;padding:3px 5px 3px 8px;background:#f5ede8;border:1px solid #d4b0a0;border-radius:20px">'+
+      '<span style="font-size:12px;font-weight:600;color:#5a3e35;margin-right:2px">'+esc(label)+'</span>'+
+      '<span id="bqty_'+bi+'_'+it.id+'" style="font-size:13px;font-weight:700;color:#b87888;min-width:18px;text-align:center">'+qty+'</span>'+
+      '<span style="font-size:11px;color:#888">箱</span>'+
+      '<button onclick="changeBoxItem('+bi+',\''+it.id+'\',-1)" style="width:24px;height:24px;border:none;background:#e8cfc4;border-radius:50%;cursor:pointer;touch-action:manipulation;font-size:16px;font-weight:700;color:#5a3e35;line-height:1;margin-left:2px">－</button>'+
+      '<button onclick="changeBoxItem('+bi+',\''+it.id+'\',1)" style="width:24px;height:24px;border:none;background:#e8cfc4;border-radius:50%;cursor:pointer;touch-action:manipulation;font-size:16px;font-weight:700;color:#5a3e35;line-height:1">＋</button>'+
+      '</span>';
+  }).join('');
+  card.innerHTML=hdr+'<div>'+tags+'</div>';
+  return card;
 }
-function updateMatomeTotal(){
-  var body=document.getElementById('matomePanelBody');if(!body)return;
-  var totalLog=0,totalPhys=0;
-  Array.prototype.forEach.call(body.querySelectorAll('.matome-item-row'),function(row){
-    var logical=parseInt(row.dataset.logical)||0;
-    var inp=row.querySelector('.matome-step-inp');
-    totalLog+=logical;
-    totalPhys+=parseInt(inp?inp.value:0)||logical;
-  });
+function addMatomeBox(){
+  var mi=_matomeCurrentMi;if(mi<0)return;
+  if(!_physBoxAssign[mi])_physBoxAssign[mi]=[];
+  var items=_getMarketItems(mi);
+  var newBox={items:{}};
+  items.forEach(function(it){newBox.items[it.id]=0;});
+  _physBoxAssign[mi].push(newBox);
+  var wrap=document.getElementById('matomeBoxWrap');
+  if(wrap){wrap.appendChild(_makeBoxCard(mi,_physBoxAssign[mi].length-1,items));}
+  _updateMatomeFooter(mi);
+}
+function removeMatomeBox(bi){
+  var mi=_matomeCurrentMi;if(mi<0)return;
+  if(!_physBoxAssign[mi])return;
+  _physBoxAssign[mi].splice(bi,1);
+  _buildMatomePanel(mi); // インデックス変わるため全再描画
+}
+function changeBoxItem(bi,itemId,delta){
+  var mi=_matomeCurrentMi;if(mi<0)return;
+  if(!_physBoxAssign[mi]||!_physBoxAssign[mi][bi])return;
+  var box=_physBoxAssign[mi][bi];
+  var logical=_getLogicalQty(mi,itemId);
+  var otherAssigned=_physBoxAssign[mi].reduce(function(s,b,idx){return s+(idx!==bi?(b.items[itemId]||0):0);},0);
+  var maxHere=logical-otherAssigned;
+  var newVal=Math.max(0,Math.min(maxHere,(box.items[itemId]||0)+delta));
+  box.items[itemId]=newVal;
+  var qEl=document.getElementById('bqty_'+bi+'_'+itemId);if(qEl)qEl.textContent=newVal;
+  // 配置待ち更新
+  var rem=_getRemaining(mi,itemId);
+  var nEl=document.getElementById('mremN_'+itemId);if(nEl)nEl.textContent=rem;
+  var rEl=document.getElementById('mrem_'+itemId);
+  if(rEl){var ok=rem===0;
+    rEl.style.background=ok?'#e8f5e8':'#ffe8e0';
+    rEl.style.borderColor=ok?'#90c490':'#e09070';
+    rEl.style.color=ok?'#2a6e2a':'#8b4535';
+  }
+  _updateMatomeFooter(mi);
+}
+function _updateMatomeFooter(mi){
   var el=document.getElementById('matomePanelTotal');if(!el)return;
-  if(totalPhys===totalLog){
-    el.innerHTML='合計 <strong>'+totalLog+'</strong><span style="font-size:12px;font-weight:400">箱（まとめなし）</span>';
+  var items=_getMarketItems(mi);
+  var logical=items.reduce(function(s,it){return s+_getLogicalQty(mi,it.id);},0);
+  var phys=_physBoxAssign[mi]?_physBoxAssign[mi].length:0;
+  var allOk=items.every(function(it){return _getRemaining(mi,it.id)===0;});
+  var warning=(!allOk&&phys>0)?'<div style="color:#c62828;font-size:12px;margin-top:4px">⚠ 配置待ちの箱数があります</div>':'';
+  if(phys===0){
+    el.innerHTML='<span style="color:#aaa">箱を追加して品目を割り振ってください</span>'+warning;
   } else {
-    el.innerHTML='合計 '+
-      '<strong style="color:#bbb;text-decoration:line-through;font-size:14px">'+totalLog+'</strong>'+
-      '<span style="font-size:12px;color:#888">箱 → 実</span> '+
-      '<strong style="color:#b87888;font-size:22px">'+totalPhys+'</strong>'+
-      '<span style="font-size:13px;color:#b87888">箱</span>';
+    el.innerHTML='合計 <strong style="color:#bbb;text-decoration:line-through">'+logical+'</strong>箱 → 実 '+
+      '<strong style="color:#b87888;font-size:22px">'+phys+'</strong><span style="font-size:13px;color:#b87888">箱</span>'+warning;
   }
 }
 function saveMatomePanel(){
   var mi=_matomeCurrentMi;if(mi<0)return;
-  var body=document.getElementById('matomePanelBody');if(!body)return;
-  Array.prototype.forEach.call(body.querySelectorAll('.matome-item-row'),function(row){
-    var itemId=row.dataset.itemId;
-    var logical=parseInt(row.dataset.logical)||0;
-    var inp=row.querySelector('.matome-step-inp');
-    var phys=parseInt(inp?inp.value:0)||logical;
-    var key=itemId+'_'+mi;
-    if(phys>0&&phys<logical){_physBoxes[key]=phys;}
-    else{delete _physBoxes[key];}
-  });
+  var items=_getMarketItems(mi);
+  var bad=items.filter(function(it){return _getRemaining(mi,it.id)!==0;});
+  if(bad.length){
+    setStatus(bad.map(function(it){var r=_getRemaining(mi,it.id);return esc(it.name)+(r>0?'('+r+'箱 未配置)':'('+Math.abs(r)+'箱 超過)');}).join(', '),'error');
+    return;
+  }
+  // 空の箱を除去
+  if(_physBoxAssign[mi]){
+    _physBoxAssign[mi]=_physBoxAssign[mi].filter(function(box){
+      return Object.keys(box.items).some(function(id){return (box.items[id]||0)>0;});
+    });
+  }
   refreshPhysBadges(mi);
   updateDistFoot();
   closeMatomePanel();
-  setStatus(MARKETS[mi]+'のまとめ設定を保存しました','ok');
+  var cnt=_physBoxAssign[mi]?_physBoxAssign[mi].length:0;
+  setStatus(MARKETS[mi]+'の共箱設定を保存しました（物理'+cnt+'箱）','ok');
 }
 function refreshPhysBadges(mi){
+  var phys=getMatomePhysTotal(mi);
   getItems().filter(function(it){return it.name;}).forEach(function(it){
     var badge=document.getElementById('pb_'+it.id+'_'+mi);if(!badge)return;
-    var key=it.id+'_'+mi;
-    var phys=_physBoxes[key];
-    if(phys&&phys>0){badge.textContent='→'+phys+'箱';badge.style.display='block';}
+    var logical=_getLogicalQty(mi,it.id);
+    if(phys!==null&&logical>0){badge.textContent='(共'+phys+'箱)';badge.style.display='block';}
     else{badge.style.display='none';}
   });
+  // ヘッダーボタンのラベル更新
+  var btn=document.getElementById('matomeBtn_'+mi);
+  if(btn)btn.textContent='まとめ'+(phys!==null?' ('+phys+'箱)':'')+'▼';
 }
 
 // ── 振り分け設定（優先順位・比率）─────────────────────────────────────────
 var DIST_COLORS=['#b87888','#7a9e82','#9878a8','#c4986a'];
 var _distEdit=null; // 設定タブの編集中データ
-var _physBoxes={}; // key: itemId+'_'+mi → まとめ後の物理箱数 (0=論理箱数と同じ)
+var _physBoxAssign={}; // [mi] = 物理箱の配列。各要素: {items:{itemId:qty,...}}
 var _matomeCurrentMi=-1;
 
 function loadDistSettings(){
@@ -2122,7 +2181,7 @@ function reApplyDist(){
 function buildDistTable(items){
   lastBuiltItemIds=items.map(function(i){return i.id;}).join(',');
   var thead=document.getElementById('distHead');
-  if(thead){var mktThs=MARKETS.map(function(m,mi){return'<th>'+m.replace('花市場','<br>花市場')+'<br><button class="matome-btn" onclick="showMatomePanel('+mi+')">まとめ&#x25BC;</button></th>';}).join('');thead.innerHTML='<tr><th class="item-col">品目・品種</th><th>等級</th><th>規格</th><th>合計</th>'+mktThs+'<th>残数</th></tr>';}
+  if(thead){var mktThs=MARKETS.map(function(m,mi){return'<th>'+m.replace('花市場','<br>花市場')+'<br><button class="matome-btn" id="matomeBtn_'+mi+'" onclick="showMatomePanel('+mi+')">まとめ&#x25BC;</button></th>';}).join('');thead.innerHTML='<tr><th class="item-col">品目・品種</th><th>等級</th><th>規格</th><th>合計</th>'+mktThs+'<th>残数</th></tr>';}
   var tbody=document.getElementById('distBody'); tbody.innerHTML='';
   items.forEach(function(it){
     var totalBoxes=parseInt((it.boxes||'0').replace(/[^\d]/g,''))||0;
@@ -2156,14 +2215,13 @@ function buildDistTable(items){
 function updateDistFoot(){
   var foot=document.getElementById('distFoot');if(!foot)return;
   var sums=MARKETS.map(function(m,mi){
-    var logical=0,physical=0;
+    var logical=0;
     Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){
       if(!el.id.match(new RegExp('_'+mi+'$')))return;
-      var itemId=el.id.replace(/^d_/,'').replace(/_\d+$/,'');
-      var n=parseInt(el.value)||0;
-      logical+=n;
-      physical+=getPhysBoxes(itemId,mi);
+      logical+=parseInt(el.value)||0;
     });
+    var phys=getMatomePhysTotal(mi);
+    var physical=phys!==null?phys:logical;
     return{logical:logical,physical:physical};
   });
   var cells=sums.map(function(s){
@@ -2192,7 +2250,7 @@ function getDistData(){
     var stemUnit=(it.count||'').replace(/[\d]/g,'').trim()||'本';
     var perBox=stemsPerBox;
     var marketCounts=MARKETS.map(function(m,mi){var el=document.getElementById('d_'+it.id+'_'+mi);return parseInt(el?el.value:0)||0;});
-    var marketBoxes=MARKETS.map(function(m,mi){return getPhysBoxes(it.id,mi);});
+    var marketBoxes=marketCounts; // 論理箱数をそのまま使用（物理まとめは市場単位でまとめ箱設定による）
     var marketStems=marketBoxes.map(function(b){return Math.round(b*perBox);});
     return{id:it.id,name:it.name,variety:it.variety,grade:it.grade,size:it.size,note:it.note,rings:it.rings||'',
       totalBoxes:totalBoxes,totalStems:totalStems,stemUnit:stemUnit,perBox:perBox,
