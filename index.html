@@ -194,10 +194,10 @@
   .dist-arrow{background:var(--primary-light);border:1.5px solid var(--border);border-radius:5px;font-size:13px;width:32px;height:30px;cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:all 0.15s;font-family:'Noto Sans JP',sans-serif}
   .dist-arrow:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose-dark)}
   /* ── 共箱 ── */
-  .mix-btn{background:none;border:1px solid #b8a8b0;border-radius:4px;font-size:10px;padding:1px 4px;cursor:pointer;color:#9a7888;margin-left:3px;vertical-align:middle;line-height:1.4;touch-action:manipulation}
-  .mix-btn:hover{background:#f5e8ec;border-color:#b87888;color:#b87888}
-  .mix-badge{font-size:11px;font-weight:700;display:block;line-height:1.6}
-  .mix-panel{position:fixed;z-index:2000;background:#fff;border:1.5px solid #b87888;border-radius:10px;padding:12px;box-shadow:0 4px 20px rgba(0,0,0,0.18);min-width:210px;font-size:13px}
+  .phys-num{width:36px;text-align:center;font-size:11px;padding:2px 2px;border:1px solid #ddd;border-radius:3px;color:#9a7888;background:#fdf8fa;touch-action:manipulation}
+  .phys-num:focus{border-color:#b87888;outline:none}
+  .phys-num::placeholder{color:#ccc;font-size:10px}
+  .phys-sep{font-size:11px;color:#aaa;margin:0 1px}
   /* 振り分けタブ プレビュー */
   .dist-ratio-preview{background:var(--primary-light);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .dist-ratio-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -638,6 +638,7 @@
             <th style="min-width:80px">輪数</th>
             <th style="min-width:100px">1箱の本数</th>
             <th style="min-width:80px">等級<br><span style="font-size:10px;font-weight:400">規定値</span></th>
+            <th style="min-width:50px">削除</th>
           </tr>
         </thead>
         <tbody id="flowerDefaultsBody"></tbody>
@@ -646,6 +647,13 @@
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
       <button class="btn-export" onclick="saveFlowerDefaults()">&#x1F4BE; 規定値を保存</button>
       <span id="flowerDefaultsSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text-mid)">品目を追加：</span>
+      <select id="addFlowerSel" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;max-width:200px">
+        <option value="">-- 品目を選択 --</option>
+      </select>
+      <button class="btn-export" onclick="addFlowerFromMaster()" style="padding:6px 14px;font-size:13px">追加</button>
     </div>
   </div>
 
@@ -734,6 +742,15 @@ var VARIETY_DATA = {
     'ホワイト','ピンク','パープル','ブルー','レッド',
     'ライトパープル','ディープピンク',
     'シャーリーホワイト','シャーリーピンク','シャーリーブルー'
+  ],
+  'ラナンキュラスラックス': [
+    'ホワイト','イエロー','オレンジ','ピンク','レッド','パープル','サーモン','ゴールド'
+  ],
+  'ラナンキュラスポンポン': [
+    'ホワイト','イエロー','オレンジ','ピンク','レッド','パープル','サーモン'
+  ],
+  'カラー': [
+    'ホワイト','クリーム','イエロー','ピンク','パープル','グリーン','ブラック','ニオイカラー'
   ]
 };
 
@@ -843,8 +860,11 @@ var FLOWER_NAME_MAP = [
   {pattern:'リンドウ',canonical:'リンドウ'},{pattern:'竜胆',canonical:'リンドウ'},
   {pattern:'りんどう',canonical:'リンドウ'},{pattern:'りんどー',canonical:'リンドウ'},
   {pattern:'百合',canonical:'ユリ'},{pattern:'ユリ',canonical:'ユリ'},{pattern:'ゆり',canonical:'ユリ'},
+  {pattern:'ラナンキュラスラックス',canonical:'ラナンキュラスラックス'},{pattern:'らなんきゅらすらっくす',canonical:'ラナンキュラスラックス'},
+  {pattern:'ラナンキュラスポンポン',canonical:'ラナンキュラスポンポン'},{pattern:'らなんきゅらすぽんぽん',canonical:'ラナンキュラスポンポン'},
   {pattern:'ラナンキュラス',canonical:'ラナンキュラス'},{pattern:'らなんきゅらす',canonical:'ラナンキュラス'},{pattern:'ラナン',canonical:'ラナンキュラス'},
-  {pattern:'アスター',canonical:'アスター'},{pattern:'あすたー',canonical:'アスター'},{pattern:'エゾギク',canonical:'アスター'},{pattern:'えぞぎく',canonical:'アスター'}
+  {pattern:'アスター',canonical:'アスター'},{pattern:'あすたー',canonical:'アスター'},{pattern:'エゾギク',canonical:'アスター'},{pattern:'えぞぎく',canonical:'アスター'},
+  {pattern:'カラー',canonical:'カラー'},{pattern:'からー',canonical:'カラー'},{pattern:'カルラ',canonical:'カラー'}
 ];
 
 // ── 音声候補スコアリング & 誤認識補正 ─────────────────────────────────
@@ -860,8 +880,10 @@ var SPEECH_CORRECTIONS=[
   [/スプレーキク/g,'スプレー菊'],[/スプレーギク/g,'スプレー菊'],[/スタチス/g,'スターチス'],[/スターティス/g,'スターチス'],
   [/キンギョウソウ/g,'金魚草'],[/キンギョソウ/g,'金魚草'],[/きんぎょそう/g,'金魚草'],
   [/向日葵/g,'ひまわり'],[/百合/g,'ユリ'],[/薔薇/g,'バラ'],
+  [/ラナンキュラスラックス/g,'ラナンキュラスラックス'],[/ラナンキュラスポンポン/g,'ラナンキュラスポンポン'],
   [/ラナンキュウラス/g,'ラナンキュラス'],[/ラナンキュラ(?!ス)/g,'ラナンキュラス'],
   [/アスタ(?!ー)/g,'アスター'],
+  [/カーラー/g,'カラー'],[/カラ(?!ー)/g,'カラー'],
   // ── 品種名補正（さかいフロリック主要品種）──
   [/ボヤージ(?!ュ)/g,'ボヤージュ'],[/ボヤーシュ/g,'ボヤージュ'],[/ボヤジュ/g,'ボヤージュ'],
   [/シグナ(?!ル)/g,'シグナル'],[/ロジナ/g,'ロジーナ'],[/キャンデ/g,'キャンディ'],
@@ -1024,7 +1046,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260528-1940';
+var APP_VERSION='20260528-1958';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1828,107 +1850,14 @@ function goToStep2(){
 function goToStep3(){buildMarketSummaries();showTab('step3');}
 function calcEvenDist(total,n){var base=Math.floor(total/n),rem=total%n,arr=[];for(var i=0;i<n;i++)arr.push(base+(i<rem?1:0));return arr;}
 
-// ── 共箱グループ管理 ─────────────────────────────────────────────────────
-var _mixedGroups={};
-// 構造: { mi: { groupId: { boxes:N, items:[itemId,...] } } }
-var _mixGroupColors={'A':'#e8f5e9','B':'#e3f2fd','C':'#fff3e0','D':'#f3e5f5','E':'#fce4ec'};
-var _mixGroupTextColors={'A':'#2e7d32','B':'#1565c0','C':'#e65100','D':'#6a1b9a','E':'#880e4f'};
-
-function getMixGroup(itemId,mi){
-  var mg=_mixedGroups[mi];if(!mg)return null;
-  for(var g in mg){if(mg[g].items.indexOf(itemId)>=0)return g;}
-  return null;
-}
-function showMixPanel(btn,itemId,mi){
-  var ex=document.getElementById('mixPanel');
-  if(ex){if(ex.dataset.for===itemId+'_'+mi){ex.remove();return;}ex.remove();}
-  var curG=getMixGroup(itemId,mi);
-  var groups=_mixedGroups[mi]||{};
-  var panel=document.createElement('div');
-  panel.id='mixPanel';panel.className='mix-panel';
-  panel.dataset.for=itemId+'_'+mi;
-  var rect=btn.getBoundingClientRect();
-  panel.style.top=Math.min(rect.bottom+6,window.innerHeight-220)+'px';
-  panel.style.left=Math.max(4,Math.min(rect.left-80,window.innerWidth-220))+'px';
-  if(curG){
-    var g=_mixedGroups[mi][curG];
-    panel.innerHTML=
-      '<div style="font-weight:700;color:'+_mixGroupTextColors[curG]+';margin-bottom:8px">共箱グループ '+curG+'</div>'+
-      '<div style="font-size:12px;color:#666;margin-bottom:4px">この市場への箱数: <strong>'+g.boxes+'箱</strong></div>'+
-      '<div style="font-size:12px;color:#666;margin-bottom:8px">グループ内: '+g.items.length+'品目</div>'+
-      '<button onclick="removeMixBox(\''+itemId+'\','+mi+')" style="background:#fff0f0;border:1px solid #e57373;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:#c62828">グループから外す</button>'+
-      '<button onclick="document.getElementById(\'mixPanel\').remove()" style="background:#f5f5f5;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;margin-left:6px">閉じる</button>';
-  } else {
-    var opts=['A','B','C','D','E'].map(function(gid){
-      var info=groups[gid]?'（'+groups[gid].items.length+'品目 '+groups[gid].boxes+'箱）':'（新規）';
-      return '<option value="'+gid+'">グループ '+gid+' '+info+'</option>';
-    }).join('');
-    var defBoxes=(Object.keys(groups).length>0 && groups[Object.keys(groups)[0]])?groups[Object.keys(groups)[0]].boxes:1;
-    panel.innerHTML=
-      '<div style="font-weight:700;color:#b87888;margin-bottom:10px">&#x1F4E6; 共箱グループに追加</div>'+
-      '<div style="margin-bottom:7px"><span style="font-size:12px;color:#666">グループ: </span>'+
-      '<select id="mixGroupSel" style="font-size:12px;padding:4px;border:1px solid #ccc;border-radius:4px">'+opts+'</select></div>'+
-      '<div style="margin-bottom:7px"><span style="font-size:12px;color:#666">この市場への箱数: </span>'+
-      '<input id="mixBoxesIn" type="number" min="1" value="'+defBoxes+'" style="width:52px;font-size:13px;padding:4px;border:1px solid #ccc;border-radius:4px;text-align:center"></div>'+
-      '<div style="font-size:11px;color:#aaa;margin-bottom:9px">複数品目で1つの箱を共有する設定です</div>'+
-      '<button onclick="applyMixBox(\''+itemId+'\','+mi+')" style="background:#b87888;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;color:#fff">設定</button>'+
-      '<button onclick="document.getElementById(\'mixPanel\').remove()" style="background:#f5f5f5;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;margin-left:6px">キャンセル</button>';
-  }
-  document.body.appendChild(panel);
-  setTimeout(function(){
-    document.addEventListener('click',function cp(e){
-      var p=document.getElementById('mixPanel');
-      if(p&&!p.contains(e.target)&&e.target!==btn){p.remove();document.removeEventListener('click',cp);}
-    });
-  },150);
-}
-function applyMixBox(itemId,mi){
-  var sel=document.getElementById('mixGroupSel');
-  var inp=document.getElementById('mixBoxesIn');
-  if(!sel||!inp)return;
-  var gid=sel.value,boxes=parseInt(inp.value)||1;
-  if(!_mixedGroups[mi])_mixedGroups[mi]={};
-  if(!_mixedGroups[mi][gid])_mixedGroups[mi][gid]={items:[],boxes:boxes};
-  _mixedGroups[mi][gid].boxes=boxes;
-  if(_mixedGroups[mi][gid].items.indexOf(itemId)<0)_mixedGroups[mi][gid].items.push(itemId);
-  var p=document.getElementById('mixPanel');if(p)p.remove();
-  updateMixedCell(itemId,mi);
-  updateDistFoot();
-}
-function removeMixBox(itemId,mi){
-  if(!_mixedGroups[mi])return;
-  for(var g in _mixedGroups[mi]){
-    var idx=_mixedGroups[mi][g].items.indexOf(itemId);
-    if(idx>=0){
-      _mixedGroups[mi][g].items.splice(idx,1);
-      if(_mixedGroups[mi][g].items.length===0)delete _mixedGroups[mi][g];
-      break;
-    }
-  }
-  var p=document.getElementById('mixPanel');if(p)p.remove();
-  updateMixedCell(itemId,mi);
-  updateDistFoot();
-}
-function updateMixedCell(itemId,mi){
-  var cell=document.getElementById('mc_'+itemId+'_'+mi);if(!cell)return;
-  var gid=getMixGroup(itemId,mi);
-  var inp=document.getElementById('d_'+itemId+'_'+mi);
-  var badge=cell.querySelector('.mix-badge');if(badge)badge.remove();
-  if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid]){
-    var g=_mixedGroups[mi][gid];
-    cell.style.background=_mixGroupColors[gid]||'#f0f0f0';
-    if(inp)inp.style.display='none';
-    var bd=document.createElement('span');
-    bd.className='mix-badge';
-    bd.style.color=_mixGroupTextColors[gid]||'#555';
-    bd.textContent='共'+gid+' '+g.boxes+'箱';
-    var mbtn=cell.querySelector('.mix-btn');
-    if(mbtn)cell.insertBefore(bd,mbtn);else cell.appendChild(bd);
-  } else {
-    cell.style.background='';
-    if(inp)inp.style.display='';
-  }
-  updateRemaining(itemId);
+// ── まとめ箱（物理箱数オーバーライド） ──────────────────────────────────────
+// p_[itemId]_[mi] 入力値が 1以上なら物理箱数として使用、空/0なら d_ と同じ
+function getPhysBoxes(itemId,mi){
+  var pEl=document.getElementById('p_'+itemId+'_'+mi);
+  var pVal=pEl?parseInt(pEl.value)||0:0;
+  if(pVal>0)return pVal;
+  var dEl=document.getElementById('d_'+itemId+'_'+mi);
+  return parseInt(dEl?dEl.value:0)||0;
 }
 
 // ── 振り分け設定（優先順位・比率）─────────────────────────────────────────
@@ -2083,7 +2012,12 @@ function buildDistTable(items){
     var gradeLabel=it.grade==='外'?'<span class="badge ext">外</span>':'<span class="badge">'+it.grade+'</span>';
     var perBoxLabel=(totalBoxes>0&&stemsPerBox>0)?'<span style="font-size:10px;color:#888;display:block">(計'+totalStems+stemUnit+' / 1箱'+stemsPerBox+stemUnit+')</span>':'';
     var sizeLabel=it.size?it.size+'cm':'－';
-    var marketCells=MARKETS.map(function(m,mi){return'<td style="text-align:center" id="mc_'+it.id+'_'+mi+'"><input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span><button class="mix-btn" onclick="showMixPanel(this,\''+it.id+'\','+mi+')" title="共箱設定">共</button></td>';}).join('');
+    var marketCells=MARKETS.map(function(m,mi){
+      return '<td style="text-align:center;padding:4px 2px" id="mc_'+it.id+'_'+mi+'">'+
+        '<input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span>'+
+        '<br><span class="phys-sep">→</span><input class="phys-num" id="p_'+it.id+'_'+mi+'" type="number" min="0" placeholder="同" onchange="updateDistFoot()" title="まとめ後の実箱数（省略時は上と同じ）"><span class="unit-label">箱</span>'+
+        '</td>';
+    }).join('');
     var initRem=totalBoxes-distVals.reduce(function(a,b){return a+b;},0);
     var remClass='remaining'+(initRem===0?' zero':initRem<0?' negative':'');
     tr.innerHTML='<td class="item-info">'+it.name+'<br><span style="color:#888;font-weight:400">'+it.variety+'</span></td>'+
@@ -2093,46 +2027,36 @@ function buildDistTable(items){
       marketCells+'<td class="'+remClass+'" id="rem_'+it.id+'">'+initRem+'<span class="unit-label">箱</span></td>';
     tbody.appendChild(tr);
   });
-  // 共箱セルを再描画（既存グループが残っている場合）
-  var validIds=items.map(function(i){return i.id;});
-  MARKETS.forEach(function(m,mi){
-    if(!_mixedGroups[mi])return;
-    for(var g in _mixedGroups[mi]){
-      _mixedGroups[mi][g].items=_mixedGroups[mi][g].items.filter(function(id){return validIds.indexOf(id)>=0;});
-      if(_mixedGroups[mi][g].items.length===0)delete _mixedGroups[mi][g];
-    }
-  });
-  items.forEach(function(it){MARKETS.forEach(function(m,mi){if(getMixGroup(it.id,mi))updateMixedCell(it.id,mi);});});
   updateDistFoot();
 }
 function updateDistFoot(){
   var foot=document.getElementById('distFoot');if(!foot)return;
   var sums=MARKETS.map(function(m,mi){
-    var s=0,counted={};
+    var logical=0,physical=0;
     Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){
       if(!el.id.match(new RegExp('_'+mi+'$')))return;
       var itemId=el.id.replace(/^d_/,'').replace(/_\d+$/,'');
-      var gid=getMixGroup(itemId,mi);
-      if(gid){
-        if(!counted[gid]){counted[gid]=true;s+=(_mixedGroups[mi]&&_mixedGroups[mi][gid])?_mixedGroups[mi][gid].boxes:0;}
-      } else {
-        s+=parseInt(el.value)||0;
-      }
+      var n=parseInt(el.value)||0;
+      logical+=n;
+      physical+=getPhysBoxes(itemId,mi);
     });
-    return s;
+    return{logical:logical,physical:physical};
   });
-  var cells=sums.map(function(s){return'<td style="text-align:center;font-weight:700;color:#8b6458;font-size:13px;padding:6px 4px">'+s+'<span class="unit-label">箱</span></td>';}).join('');
+  var cells=sums.map(function(s){
+    var txt=s.logical+'<span class="unit-label">箱</span>';
+    if(s.physical!==s.logical)txt+='<br><span style="font-size:11px;color:#b87888">実'+s.physical+'箱</span>';
+    return'<td style="text-align:center;font-weight:700;color:#8b6458;font-size:13px;padding:6px 4px">'+txt+'</td>';
+  }).join('');
   foot.innerHTML='<tr style="background:#f5ede8"><td class="item-info" colspan="4" style="text-align:right;font-weight:700;color:#8b6458;font-size:12px;padding:6px 8px">各市場 合計 ▶</td>'+cells+'<td></td></tr>';
 }
 function updateRemaining(itemId){
-  var row=document.getElementById('drow_'+itemId); if(!row)return;
+  var row=document.getElementById('drow_'+itemId);if(!row)return;
   var total=parseInt(row.dataset.total)||0,used=0;
   MARKETS.forEach(function(m,mi){
-    var gid=getMixGroup(itemId,mi);
-    if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid]){used+=_mixedGroups[mi][gid].boxes;}
-    else{var el=document.getElementById('d_'+itemId+'_'+mi);used+=parseInt(el?el.value:0)||0;}
+    var el=document.getElementById('d_'+itemId+'_'+mi);
+    used+=parseInt(el?el.value:0)||0;
   });
-  var rem=total-used, cell=document.getElementById('rem_'+itemId);
+  var rem=total-used,cell=document.getElementById('rem_'+itemId);
   if(cell){cell.innerHTML=rem+'<span class="unit-label">箱</span>';cell.className='remaining'+(rem===0?' zero':rem<0?' negative':'');}
   updateDistFoot();
 }
@@ -2143,16 +2067,12 @@ function getDistData(){
     var totalStems=stemsPerBox*totalBoxes;
     var stemUnit=(it.count||'').replace(/[\d]/g,'').trim()||'本';
     var perBox=stemsPerBox;
-    var marketBoxes=MARKETS.map(function(m,mi){
-      var gid=getMixGroup(it.id,mi);
-      if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid])return _mixedGroups[mi][gid].boxes;
-      var el=document.getElementById('d_'+it.id+'_'+mi);return parseInt(el?el.value:0)||0;
-    });
+    var marketCounts=MARKETS.map(function(m,mi){var el=document.getElementById('d_'+it.id+'_'+mi);return parseInt(el?el.value:0)||0;});
+    var marketBoxes=MARKETS.map(function(m,mi){return getPhysBoxes(it.id,mi);});
     var marketStems=marketBoxes.map(function(b){return Math.round(b*perBox);});
-    var mixGroups=MARKETS.map(function(m,mi){return getMixGroup(it.id,mi);});
     return{id:it.id,name:it.name,variety:it.variety,grade:it.grade,size:it.size,note:it.note,rings:it.rings||'',
       totalBoxes:totalBoxes,totalStems:totalStems,stemUnit:stemUnit,perBox:perBox,
-      marketBoxes:marketBoxes,marketStems:marketStems,marketCounts:marketBoxes,unit:'箱',mixGroups:mixGroups};
+      marketBoxes:marketBoxes,marketStems:marketStems,marketCounts:marketCounts,unit:'箱'};
   });
 }
 function buildMarketSummaries(){
@@ -2202,8 +2122,7 @@ function buildMarketSummaries(){
   if(!container.children.length)container.innerHTML='<div class="info-box">振り分けデータがありません。&#x2461; 市場振り分けで入力してください。</div>';
 }
 function escCsv(s){var v=String(s||'');if(v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0)v='"'+v.replace(/"/g,'""')+'"';return v;}
-// 共箱グループ付きの備考文字列を返す
-function _mixNote(it,mi){var g=it.mixGroups&&it.mixGroups[mi];return g?((it.note?it.note+' ':'')+'共箱'+g):it.note||'';}
+function _mixNote(it,mi){return it.note||'';}
 function exportMarketCSV(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var pinfo=loadProducerInfo();
@@ -2788,38 +2707,63 @@ function buildFlowerDefaultsUI(){
   var tbody=document.getElementById('flowerDefaultsBody');
   if(!tbody)return;
   tbody.innerHTML='';
-  // VARIETY_DATA + customMaster の全品目を列挙
+  var savedNames=Object.keys(FLOWER_DEFAULTS);
+  if(savedNames.length===0){
+    var empty=document.createElement('tr');
+    empty.innerHTML='<td colspan="6" style="text-align:center;color:#aaa;font-size:13px;padding:16px">（まだ登録されていません。下の「品目を追加」から追加してください）</td>';
+    tbody.appendChild(empty);
+  }
+  savedNames.forEach(function(name){_appendFlowerDefaultRow(tbody,name);});
+  _buildAddFlowerSel();
+}
+function _buildAddFlowerSel(){
+  var sel=document.getElementById('addFlowerSel');if(!sel)return;
   var allFlowers=Object.keys(VARIETY_DATA).slice();
   try{var cm=JSON.parse(localStorage.getItem('customMaster'))||{};for(var ck in cm){if(cm.hasOwnProperty(ck)&&allFlowers.indexOf(ck)<0)allFlowers.push(ck);}}catch(e){}
-  allFlowers.forEach(function(name){
-    var d=FLOWER_DEFAULTS[name]||{};
-    var curSize=d.size!==undefined?d.size:(DEFAULT_SIZE[name]||'');
-    var curRings=d.rings!==undefined?d.rings:(DEFAULT_RINGS[name]||'');
-    var curCount=d.count!==undefined?d.count:(DEFAULT_COUNT[name]||'');
-    var curGrade=d.grade!==undefined?d.grade:(DEFAULT_GRADE[name]||'');
-    var inp=function(cls,val,ph,w){
-      return '<input type="text" inputmode="numeric" class="'+cls+'" value="'+esc(val)+'" placeholder="'+ph+'" style="width:'+w+'px;text-align:center;font-size:14px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">';
-    };
-    var ringSel=
-      '<select class="fdef-rings" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">'+
-      '<option value="">--</option>'+
-      ['3F↑','2F','SP'].map(function(v){return'<option value="'+v+'"'+(curRings===v?' selected':'')+'>'+v+'</option>';}).join('')+
-      '</select>';
-    var gradeSel=
-      '<select class="fdef-grade" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">'+
-      '<option value="">--</option>'+
-      ['A','B','秀','優','良','外'].map(function(v){return'<option value="'+v+'"'+(curGrade===v?' selected':'')+'>'+v+'</option>';}).join('')+
-      '</select>';
-    var tr=document.createElement('tr');
-    tr.dataset.name=name;
-    tr.innerHTML=
-      '<td style="font-weight:600;font-size:13px;padding:6px 8px;white-space:nowrap">'+esc(name)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',60)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
-      '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',84)+'</td>'+
-      '<td style="text-align:center;padding:4px">'+gradeSel+'</td>';
-    tbody.appendChild(tr);
-  });
+  sel.innerHTML='<option value="">-- 品目を選択 --</option>'+allFlowers.map(function(n){return'<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('');
+}
+function _appendFlowerDefaultRow(tbody,name){
+  var d=FLOWER_DEFAULTS[name]||{};
+  var curSize=d.size!==undefined?d.size:(DEFAULT_SIZE[name]||'');
+  var curRings=d.rings!==undefined?d.rings:(DEFAULT_RINGS[name]||'');
+  var curCount=d.count!==undefined?d.count:(DEFAULT_COUNT[name]||'');
+  var curGrade=d.grade!==undefined?d.grade:(DEFAULT_GRADE[name]||'');
+  var inp=function(cls,val,ph,w){return'<input type="text" inputmode="numeric" class="'+cls+'" value="'+esc(val)+'" placeholder="'+ph+'" style="width:'+w+'px;text-align:center;font-size:14px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff">';};
+  var ringSel='<select class="fdef-rings" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">--</option>'+['3F↑','2F','SP'].map(function(v){return'<option value="'+v+'"'+(curRings===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
+  var gradeSel='<select class="fdef-grade" style="font-size:13px;padding:5px 4px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">--</option>'+['A','B','秀','優','良','外'].map(function(v){return'<option value="'+v+'"'+(curGrade===v?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
+  var tr=document.createElement('tr');
+  tr.dataset.name=name;
+  tr.innerHTML=
+    '<td style="font-weight:600;font-size:13px;padding:6px 8px;white-space:nowrap">'+esc(name)+'</td>'+
+    '<td style="text-align:center;padding:4px">'+inp('fdef-size',curSize,'例:80',60)+'</td>'+
+    '<td style="text-align:center;padding:4px">'+ringSel+'</td>'+
+    '<td style="text-align:center;padding:4px">'+inp('fdef-count',curCount,'例:100本',84)+'</td>'+
+    '<td style="text-align:center;padding:4px">'+gradeSel+'</td>'+
+    '<td style="text-align:center;padding:4px"><button onclick="deleteFlowerDefaultRow(this)" style="background:#fff0f0;border:1px solid #e57373;border-radius:5px;padding:3px 8px;font-size:12px;color:#c62828;cursor:pointer;touch-action:manipulation">削除</button></td>';
+  tbody.appendChild(tr);
+}
+function deleteFlowerDefaultRow(btn){
+  var tr=btn.closest('tr');if(!tr)return;
+  tr.remove();
+  var tbody=document.getElementById('flowerDefaultsBody');
+  var remaining=tbody?tbody.querySelectorAll('tr[data-name]').length:0;
+  if(tbody&&remaining===0){
+    var empty=document.createElement('tr');
+    empty.innerHTML='<td colspan="6" style="text-align:center;color:#aaa;font-size:13px;padding:16px">（まだ登録されていません。下の「品目を追加」から追加してください）</td>';
+    tbody.appendChild(empty);
+  }
+}
+function addFlowerFromMaster(){
+  var sel=document.getElementById('addFlowerSel');if(!sel||!sel.value)return;
+  var name=sel.value;
+  var tbody=document.getElementById('flowerDefaultsBody');if(!tbody)return;
+  var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr[data-name]'));
+  if(rows.some(function(r){return r.dataset.name===name;})){setStatus('「'+name+'」はすでに追加されています','error');return;}
+  Array.prototype.forEach.call(tbody.querySelectorAll('tr:not([data-name])'),function(r){r.remove();});
+  if(!FLOWER_DEFAULTS[name])FLOWER_DEFAULTS[name]={};
+  _appendFlowerDefaultRow(tbody,name);
+  sel.value='';
+  setStatus('「'+name+'」を追加しました','ok');
 }
 function saveFlowerDefaults(){
   var tbody=document.getElementById('flowerDefaultsBody');
