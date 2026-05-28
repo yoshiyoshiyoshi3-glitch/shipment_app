@@ -193,6 +193,11 @@
   .dist-arrows{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
   .dist-arrow{background:var(--primary-light);border:1.5px solid var(--border);border-radius:5px;font-size:13px;width:32px;height:30px;cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:all 0.15s;font-family:'Noto Sans JP',sans-serif}
   .dist-arrow:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose-dark)}
+  /* ── 共箱 ── */
+  .mix-btn{background:none;border:1px solid #b8a8b0;border-radius:4px;font-size:10px;padding:1px 4px;cursor:pointer;color:#9a7888;margin-left:3px;vertical-align:middle;line-height:1.4;touch-action:manipulation}
+  .mix-btn:hover{background:#f5e8ec;border-color:#b87888;color:#b87888}
+  .mix-badge{font-size:11px;font-weight:700;display:block;line-height:1.6}
+  .mix-panel{position:fixed;z-index:2000;background:#fff;border:1.5px solid #b87888;border-radius:10px;padding:12px;box-shadow:0 4px 20px rgba(0,0,0,0.18);min-width:210px;font-size:13px}
   /* 振り分けタブ プレビュー */
   .dist-ratio-preview{background:var(--primary-light);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .dist-ratio-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -1019,7 +1024,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260527-1839';
+var APP_VERSION='20260528-1336';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1816,6 +1821,109 @@ function goToStep2(){
 function goToStep3(){buildMarketSummaries();showTab('step3');}
 function calcEvenDist(total,n){var base=Math.floor(total/n),rem=total%n,arr=[];for(var i=0;i<n;i++)arr.push(base+(i<rem?1:0));return arr;}
 
+// ── 共箱グループ管理 ─────────────────────────────────────────────────────
+var _mixedGroups={};
+// 構造: { mi: { groupId: { boxes:N, items:[itemId,...] } } }
+var _mixGroupColors={'A':'#e8f5e9','B':'#e3f2fd','C':'#fff3e0','D':'#f3e5f5','E':'#fce4ec'};
+var _mixGroupTextColors={'A':'#2e7d32','B':'#1565c0','C':'#e65100','D':'#6a1b9a','E':'#880e4f'};
+
+function getMixGroup(itemId,mi){
+  var mg=_mixedGroups[mi];if(!mg)return null;
+  for(var g in mg){if(mg[g].items.indexOf(itemId)>=0)return g;}
+  return null;
+}
+function showMixPanel(btn,itemId,mi){
+  var ex=document.getElementById('mixPanel');
+  if(ex){if(ex.dataset.for===itemId+'_'+mi){ex.remove();return;}ex.remove();}
+  var curG=getMixGroup(itemId,mi);
+  var groups=_mixedGroups[mi]||{};
+  var panel=document.createElement('div');
+  panel.id='mixPanel';panel.className='mix-panel';
+  panel.dataset.for=itemId+'_'+mi;
+  var rect=btn.getBoundingClientRect();
+  panel.style.top=Math.min(rect.bottom+6,window.innerHeight-220)+'px';
+  panel.style.left=Math.max(4,Math.min(rect.left-80,window.innerWidth-220))+'px';
+  if(curG){
+    var g=_mixedGroups[mi][curG];
+    panel.innerHTML=
+      '<div style="font-weight:700;color:'+_mixGroupTextColors[curG]+';margin-bottom:8px">共箱グループ '+curG+'</div>'+
+      '<div style="font-size:12px;color:#666;margin-bottom:4px">この市場への箱数: <strong>'+g.boxes+'箱</strong></div>'+
+      '<div style="font-size:12px;color:#666;margin-bottom:8px">グループ内: '+g.items.length+'品目</div>'+
+      '<button onclick="removeMixBox(\''+itemId+'\','+mi+')" style="background:#fff0f0;border:1px solid #e57373;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:#c62828">グループから外す</button>'+
+      '<button onclick="document.getElementById(\'mixPanel\').remove()" style="background:#f5f5f5;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;margin-left:6px">閉じる</button>';
+  } else {
+    var opts=['A','B','C','D','E'].map(function(gid){
+      var info=groups[gid]?'（'+groups[gid].items.length+'品目 '+groups[gid].boxes+'箱）':'（新規）';
+      return '<option value="'+gid+'">グループ '+gid+' '+info+'</option>';
+    }).join('');
+    var defBoxes=(Object.keys(groups).length>0 && groups[Object.keys(groups)[0]])?groups[Object.keys(groups)[0]].boxes:1;
+    panel.innerHTML=
+      '<div style="font-weight:700;color:#b87888;margin-bottom:10px">&#x1F4E6; 共箱グループに追加</div>'+
+      '<div style="margin-bottom:7px"><span style="font-size:12px;color:#666">グループ: </span>'+
+      '<select id="mixGroupSel" style="font-size:12px;padding:4px;border:1px solid #ccc;border-radius:4px">'+opts+'</select></div>'+
+      '<div style="margin-bottom:7px"><span style="font-size:12px;color:#666">この市場への箱数: </span>'+
+      '<input id="mixBoxesIn" type="number" min="1" value="'+defBoxes+'" style="width:52px;font-size:13px;padding:4px;border:1px solid #ccc;border-radius:4px;text-align:center"></div>'+
+      '<div style="font-size:11px;color:#aaa;margin-bottom:9px">複数品目で1つの箱を共有する設定です</div>'+
+      '<button onclick="applyMixBox(\''+itemId+'\','+mi+')" style="background:#b87888;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;color:#fff">設定</button>'+
+      '<button onclick="document.getElementById(\'mixPanel\').remove()" style="background:#f5f5f5;border:1px solid #ccc;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;margin-left:6px">キャンセル</button>';
+  }
+  document.body.appendChild(panel);
+  setTimeout(function(){
+    document.addEventListener('click',function cp(e){
+      var p=document.getElementById('mixPanel');
+      if(p&&!p.contains(e.target)&&e.target!==btn){p.remove();document.removeEventListener('click',cp);}
+    });
+  },150);
+}
+function applyMixBox(itemId,mi){
+  var sel=document.getElementById('mixGroupSel');
+  var inp=document.getElementById('mixBoxesIn');
+  if(!sel||!inp)return;
+  var gid=sel.value,boxes=parseInt(inp.value)||1;
+  if(!_mixedGroups[mi])_mixedGroups[mi]={};
+  if(!_mixedGroups[mi][gid])_mixedGroups[mi][gid]={items:[],boxes:boxes};
+  _mixedGroups[mi][gid].boxes=boxes;
+  if(_mixedGroups[mi][gid].items.indexOf(itemId)<0)_mixedGroups[mi][gid].items.push(itemId);
+  var p=document.getElementById('mixPanel');if(p)p.remove();
+  updateMixedCell(itemId,mi);
+  updateDistFoot();
+}
+function removeMixBox(itemId,mi){
+  if(!_mixedGroups[mi])return;
+  for(var g in _mixedGroups[mi]){
+    var idx=_mixedGroups[mi][g].items.indexOf(itemId);
+    if(idx>=0){
+      _mixedGroups[mi][g].items.splice(idx,1);
+      if(_mixedGroups[mi][g].items.length===0)delete _mixedGroups[mi][g];
+      break;
+    }
+  }
+  var p=document.getElementById('mixPanel');if(p)p.remove();
+  updateMixedCell(itemId,mi);
+  updateDistFoot();
+}
+function updateMixedCell(itemId,mi){
+  var cell=document.getElementById('mc_'+itemId+'_'+mi);if(!cell)return;
+  var gid=getMixGroup(itemId,mi);
+  var inp=document.getElementById('d_'+itemId+'_'+mi);
+  var badge=cell.querySelector('.mix-badge');if(badge)badge.remove();
+  if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid]){
+    var g=_mixedGroups[mi][gid];
+    cell.style.background=_mixGroupColors[gid]||'#f0f0f0';
+    if(inp)inp.style.display='none';
+    var bd=document.createElement('span');
+    bd.className='mix-badge';
+    bd.style.color=_mixGroupTextColors[gid]||'#555';
+    bd.textContent='共'+gid+' '+g.boxes+'箱';
+    var mbtn=cell.querySelector('.mix-btn');
+    if(mbtn)cell.insertBefore(bd,mbtn);else cell.appendChild(bd);
+  } else {
+    cell.style.background='';
+    if(inp)inp.style.display='';
+  }
+  updateRemaining(itemId);
+}
+
 // ── 振り分け設定（優先順位・比率）─────────────────────────────────────────
 var DIST_COLORS=['#b87888','#7a9e82','#9878a8','#c4986a'];
 var _distEdit=null; // 設定タブの編集中データ
@@ -1968,7 +2076,7 @@ function buildDistTable(items){
     var gradeLabel=it.grade==='外'?'<span class="badge ext">外</span>':'<span class="badge">'+it.grade+'</span>';
     var perBoxLabel=(totalBoxes>0&&stemsPerBox>0)?'<span style="font-size:10px;color:#888;display:block">(計'+totalStems+stemUnit+' / 1箱'+stemsPerBox+stemUnit+')</span>':'';
     var sizeLabel=it.size?it.size+'cm':'－';
-    var marketCells=MARKETS.map(function(m,mi){return'<td style="text-align:center"><input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span></td>';}).join('');
+    var marketCells=MARKETS.map(function(m,mi){return'<td style="text-align:center" id="mc_'+it.id+'_'+mi+'"><input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span><button class="mix-btn" onclick="showMixPanel(this,\''+it.id+'\','+mi+')" title="共箱設定">共</button></td>';}).join('');
     var initRem=totalBoxes-distVals.reduce(function(a,b){return a+b;},0);
     var remClass='remaining'+(initRem===0?' zero':initRem<0?' negative':'');
     tr.innerHTML='<td class="item-info">'+it.name+'<br><span style="color:#888;font-weight:400">'+it.variety+'</span></td>'+
@@ -1978,14 +2086,31 @@ function buildDistTable(items){
       marketCells+'<td class="'+remClass+'" id="rem_'+it.id+'">'+initRem+'<span class="unit-label">箱</span></td>';
     tbody.appendChild(tr);
   });
+  // 共箱セルを再描画（既存グループが残っている場合）
+  var validIds=items.map(function(i){return i.id;});
+  MARKETS.forEach(function(m,mi){
+    if(!_mixedGroups[mi])return;
+    for(var g in _mixedGroups[mi]){
+      _mixedGroups[mi][g].items=_mixedGroups[mi][g].items.filter(function(id){return validIds.indexOf(id)>=0;});
+      if(_mixedGroups[mi][g].items.length===0)delete _mixedGroups[mi][g];
+    }
+  });
+  items.forEach(function(it){MARKETS.forEach(function(m,mi){if(getMixGroup(it.id,mi))updateMixedCell(it.id,mi);});});
   updateDistFoot();
 }
 function updateDistFoot(){
   var foot=document.getElementById('distFoot');if(!foot)return;
   var sums=MARKETS.map(function(m,mi){
-    var s=0;
+    var s=0,counted={};
     Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){
-      if(el.id.match(new RegExp('_'+mi+'$')))s+=parseInt(el.value)||0;
+      if(!el.id.match(new RegExp('_'+mi+'$')))return;
+      var itemId=el.id.replace(/^d_/,'').replace(/_\d+$/,'');
+      var gid=getMixGroup(itemId,mi);
+      if(gid){
+        if(!counted[gid]){counted[gid]=true;s+=(_mixedGroups[mi]&&_mixedGroups[mi][gid])?_mixedGroups[mi][gid].boxes:0;}
+      } else {
+        s+=parseInt(el.value)||0;
+      }
     });
     return s;
   });
@@ -1995,7 +2120,11 @@ function updateDistFoot(){
 function updateRemaining(itemId){
   var row=document.getElementById('drow_'+itemId); if(!row)return;
   var total=parseInt(row.dataset.total)||0,used=0;
-  MARKETS.forEach(function(m,mi){var el=document.getElementById('d_'+itemId+'_'+mi);used+=parseInt(el?el.value:0)||0;});
+  MARKETS.forEach(function(m,mi){
+    var gid=getMixGroup(itemId,mi);
+    if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid]){used+=_mixedGroups[mi][gid].boxes;}
+    else{var el=document.getElementById('d_'+itemId+'_'+mi);used+=parseInt(el?el.value:0)||0;}
+  });
   var rem=total-used, cell=document.getElementById('rem_'+itemId);
   if(cell){cell.innerHTML=rem+'<span class="unit-label">箱</span>';cell.className='remaining'+(rem===0?' zero':rem<0?' negative':'');}
   updateDistFoot();
@@ -2007,11 +2136,16 @@ function getDistData(){
     var totalStems=stemsPerBox*totalBoxes;
     var stemUnit=(it.count||'').replace(/[\d]/g,'').trim()||'本';
     var perBox=stemsPerBox;
-    var marketBoxes=MARKETS.map(function(m,mi){var el=document.getElementById('d_'+it.id+'_'+mi);return parseInt(el?el.value:0)||0;});
+    var marketBoxes=MARKETS.map(function(m,mi){
+      var gid=getMixGroup(it.id,mi);
+      if(gid&&_mixedGroups[mi]&&_mixedGroups[mi][gid])return _mixedGroups[mi][gid].boxes;
+      var el=document.getElementById('d_'+it.id+'_'+mi);return parseInt(el?el.value:0)||0;
+    });
     var marketStems=marketBoxes.map(function(b){return Math.round(b*perBox);});
+    var mixGroups=MARKETS.map(function(m,mi){return getMixGroup(it.id,mi);});
     return{id:it.id,name:it.name,variety:it.variety,grade:it.grade,size:it.size,note:it.note,rings:it.rings||'',
       totalBoxes:totalBoxes,totalStems:totalStems,stemUnit:stemUnit,perBox:perBox,
-      marketBoxes:marketBoxes,marketStems:marketStems,marketCounts:marketBoxes,unit:'箱'};
+      marketBoxes:marketBoxes,marketStems:marketStems,marketCounts:marketBoxes,unit:'箱',mixGroups:mixGroups};
   });
 }
 function buildMarketSummaries(){
@@ -2061,6 +2195,8 @@ function buildMarketSummaries(){
   if(!container.children.length)container.innerHTML='<div class="info-box">振り分けデータがありません。&#x2461; 市場振り分けで入力してください。</div>';
 }
 function escCsv(s){var v=String(s||'');if(v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0)v='"'+v.replace(/"/g,'""')+'"';return v;}
+// 共箱グループ付きの備考文字列を返す
+function _mixNote(it,mi){var g=it.mixGroups&&it.mixGroups[mi];return g?((it.note?it.note+' ':'')+'共箱'+g):it.note||'';}
 function exportMarketCSV(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var pinfo=loadProducerInfo();
@@ -2075,7 +2211,7 @@ function exportMarketCSV(market,mi){
   csv+='生産者コード,'+escCsv(pcode)+'\n';
   csv+='生産者名,'+escCsv(producer)+'\n\n';
   csv+='品目名,品種・色,等級,輪数,規格(cm),箱数,1箱あたり本数,備考\n';
-  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.marketBoxes[mi]+'箱'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(it.note)].join(',')+'\n';});
+  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.marketBoxes[mi]+'箱'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(_mixNote(it,mi))].join(',')+'\n';});
   var folder=(date||'日付未定')+'/';
   downloadFile(csv,folder+market+' '+(date||'日付未定')+'.csv','text/csv;charset=utf-8;');
   setStatus(market+'の伝票をダウンロードしました');
@@ -2124,7 +2260,7 @@ function exportMarketExcel(market,mi){
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
   var rows=xlsHead(date,producer,'出荷伝票',market);
   rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','箱数','1箱あたり本数','備考']);
-  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.marketBoxes[mi]+'箱')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(it.note)+'</Row>';});
+  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.marketBoxes[mi]+'箱')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(_mixNote(it,mi))+'</Row>';});
   var folder=(date||'日付未定')+'/';
   downloadXls(rows,market,folder+market+' '+(date||'日付未定')+'.xls');
   setStatus(market+'のExcelをダウンロードしました');
@@ -2200,7 +2336,7 @@ function printAllMarketsSlips(){
     var telLine=pinfo.tel?'<tr><td class="lbl">電話</td><td>'+pinfo.tel+'</td></tr>':'';
     var codeLine=pcode?'<tr><td class="lbl">生産者コード</td><td><strong>'+pcode+'</strong></td></tr>':'';
     var tbody=items.map(function(it){
-      return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
+      return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_mixNote(it,mi)+'</td></tr>';
     }).join('');
     var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
     pages.push(
@@ -2228,7 +2364,7 @@ function exportMarketPDF(market,mi){
   var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
   var tbody=items.map(function(it){
-    return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
+    return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_mixNote(it,mi)+'</td></tr>';
   }).join('');
   var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
   var win=window.open('','_blank','width=900,height=750');
