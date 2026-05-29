@@ -1051,9 +1051,10 @@ function _splitItemTexts(text){
     if(part)parts.push(part);
     start=bounds[i];
   }
-  // 最後の箱より後ろに残り（未完成の次品目など）があれば独立した断片として扱う
+  // 最後の箱より後ろの付帯語（品種・色・備考など）は直前の品目に結合する
+  // （「数を言った後に品種や備考を足す」操作を品種欄混入なしで受け止める）
   var tail=t.slice(start).trim();
-  if(tail)parts.push(tail);
+  if(tail&&parts.length>0)parts[parts.length-1]+=' '+tail;
   return parts.length>1?parts:[text];
 }
 
@@ -1077,7 +1078,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2252';
+var APP_VERSION='20260529-2320';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1260,35 +1261,30 @@ function _srStart(){
         var cb=pendingCb;pendingCb=null;_srOn=false;
         stopRecUI();cb(text);
       } else if(_srOn){
-        // 連続モード：テキスト処理
+        // 連続モード：すべて pendingText に蓄積し、無音が PARSE_DELAY 続いたときだけ確定する。
+        // 確定時に「箱」境界で分割するので、途中で即確定しない（設定した待ち時間を完全に尊重）。
         if(_pendingPartialItem){
-          // 保留中（未完成）アイテムがある → 異なる品目なら先に確定
+          // 保留中（未完成・箱なし）アイテムがある場合
           var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
           if(_nf&&_pf&&_nf!==_pf){
-            parseAndAddItem(_pendingPartialItem);updateLastNameHint();
+            // 異なる品目を言い始めた → 保留分を先に確定（不完全でも欄ハイライトで補完を促す）
+            var _ppts=_splitItemTexts(_pendingPartialItem);
+            for(var _ppi=0;_ppi<_ppts.length;_ppi++){var _ppp=_ppts[_ppi].trim();if(_ppp){parseAndAddItem(_ppp);}}
+            updateLastNameHint();
             _pendingPartialItem='';pendingText=text;
           } else {
-            pendingText=_pendingPartialItem+' '+text;_pendingPartialItem='';
+            pendingText=(_pendingPartialItem+' '+text).trim();_pendingPartialItem='';
           }
-        } else if(pendingText&&_isItemComplete(pendingText)){
-          // ★ 直前アイテムが完成済みで新テキストが来た → 即確定して新規開始
-          clearTimeout(parseTimer);parseTimer=null;
-          var _prev=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
-          var _prevPts=_splitItemTexts(_prev);
-          for(var _pvi=0;_pvi<_prevPts.length;_pvi++){var _pvp=_prevPts[_pvi].trim();if(_pvp){parseAndAddItem(_pvp);}}
-          setStatus('「'+_prev+'」を追加','ok');updateLastNameHint();
-          pendingText=text;
         } else {
           pendingText+=(pendingText?' ':'')+text;
         }
         clearTimeout(parseTimer);
-        var _delay=_isItemComplete(pendingText)?Math.min(600,PARSE_DELAY):PARSE_DELAY;
         parseTimer=setTimeout(function(){
           parseTimer=null;
           var combined=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
           if(!combined)return;
           if(_isItemComplete(combined)){
-            // ★ 複数品目が1発話に入った場合（「バラ10本2箱 菊5本1箱」等）を花名境界で分割
+            // 蓄積テキストに複数品目があれば「箱」境界で分割して個別に追加
             var _pts=_splitItemTexts(combined);
             for(var _pti=0;_pti<_pts.length;_pti++){var _pp=_pts[_pti].trim();if(_pp){parseAndAddItem(_pp);}}
             updateLastNameHint();
@@ -1298,7 +1294,7 @@ function _srStart(){
             var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
             setStatus('⏳ 続きをどうぞ（本数・箱数） ▶「'+_hint+'」','recording');
           }
-        },_delay);
+        },PARSE_DELAY);
       }
     }
     if(interim){
