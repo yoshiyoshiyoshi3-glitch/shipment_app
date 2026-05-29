@@ -1051,7 +1051,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-1630';
+var APP_VERSION='20260529-1636';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2672,16 +2672,19 @@ function openLabelWindow(dataList){
     var pcode=getProducerCode(d.market);
     var physBoxes=_physBoxAssign[mi];
     if(physBoxes&&physBoxes.length>0){
-      // まとめモード：物理箱単位のラベル（①②③...）
+      // まとめモード：品種単位ラベル＋箱番号（小）を付与
       var itemMap={};d.items.forEach(function(it){itemMap[it.id]=it;});
       physBoxes.forEach(function(box,bi){
-        var bItems=Object.keys(box.items).map(function(iid){
-          var it=itemMap[iid];var logQty=box.items[iid];
-          var stems=it?Math.round(logQty*(it.perBox||0)):0;
-          return it?{it:it,logQty:logQty,stems:stems}:null;
-        }).filter(Boolean);
-        allLabels.push({market:d.market,mi:mi,date:d.date,producer:d.producer,producerCode:pcode,
-          physBox:true,boxNum:bi+1,circled:_circledNum(bi+1),boxItems:bItems});
+        var circled=_circledNum(bi+1);
+        Object.keys(box.items).forEach(function(iid){
+          var it=itemMap[iid];if(!it)return;
+          var logQty=box.items[iid];
+          var stemsPerBox=it.perBox||0;
+          for(var b=0;b<logQty;b++){
+            allLabels.push({market:d.market,mi:mi,date:d.date,producer:d.producer,
+              producerCode:pcode,it:it,stemsPerBox:stemsPerBox,circled:circled});
+          }
+        });
       });
     }else{
       // 通常モード：品目×論理箱数のラベル
@@ -2703,28 +2706,14 @@ function buildLabelPageHTML(allLabels){
   for(var i=0;i<allLabels.length;i+=PER_PAGE){var chunk=allLabels.slice(i,i+PER_PAGE);while(chunk.length<PER_PAGE)chunk.push(null);pages.push(chunk);}
   function labelCell(entry){
     if(!entry)return'<div class="label label-empty"></div>';
-    if(entry.physBox){
-      // まとめ物理箱ラベル：①②③...を大きく表示し全品目を列挙
-      var bLines=entry.boxItems.map(function(bi){
-        var it=bi.it;
-        var stemTxt=bi.stems>0?('<span class="lbl-bstem">'+bi.stems+it.stemUnit+'</span>'):'';
-        return'<div class="lbl-bitem"><span class="lbl-bname">'+it.name+(it.variety?' '+it.variety:'')+'</span>'+stemTxt+'</div>';
-      }).join('');
-      var codeLine=entry.producerCode?'<div class="lbl-code">コード：'+entry.producerCode+'</div>':'';
-      return'<div class="label">'+
-        '<div class="lbl-market">'+entry.market+'</div>'+
-        '<div class="lbl-boxnum">'+entry.circled+'</div>'+
-        '<div class="lbl-bitems">'+bLines+'</div>'+
-        codeLine+
-        '<div class="lbl-producer">生産者：'+(entry.producer||'')+'</div>'+
-        '<div class="lbl-date">'+entry.date+'</div></div>';
-    }
     var spb=entry.stemsPerBox||0;
     var stemLine=spb>0?'<div class="lbl-count">'+spb+entry.it.stemUnit+'</div>':'';
     var codeLine=entry.producerCode?'<div class="lbl-code">コード：'+entry.producerCode+'</div>':'';
     var ringsVal=entry.it.rings||'';
+    // まとめ時：箱番号を右上に小さく表示
+    var badgeHtml=entry.circled?'<span style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:9.5pt;font-weight:900;color:#b87888;line-height:1">'+entry.circled+'</span>':'';
     return'<div class="label">'+
-      '<div class="lbl-market">'+entry.market+'</div>'+
+      '<div class="lbl-market" style="position:relative">'+badgeHtml+entry.market+'</div>'+
       '<div class="lbl-name">'+entry.it.name+'</div>'+
       '<div class="lbl-variety">'+(entry.it.variety||'　')+'</div>'+
       '<div class="lbl-row">'+
@@ -2755,10 +2744,6 @@ function buildLabelPageHTML(allLabels){
     '.lbl-key{font-size:8pt;color:#9a8880;font-weight:600}.lbl-val{font-size:13pt;font-weight:900;color:#3a2e28}.val-ext{color:#9a4820}'+
     '.lbl-count{font-size:19pt;font-weight:900;text-align:center;color:#3a2e28;line-height:1.1}.lbl-stems{font-size:11pt;font-weight:700;color:#6e5a50;margin-left:4pt}'+
     '.lbl-note{font-size:9pt;color:#9a4820;font-weight:700;text-align:center;background:#fef8e8;border-radius:2mm;padding:1mm}.lbl-producer{font-size:8.5pt;color:#8b6458;font-weight:700;text-align:center;margin-top:1mm}.lbl-date{font-size:7.5pt;color:#b0a0a0;text-align:right}'+
-    '.lbl-boxnum{font-size:36pt;font-weight:900;text-align:center;color:#b87888;line-height:1;margin:2mm 0}'+
-    '.lbl-bitems{flex:1;overflow:hidden;margin:1mm 0}'+
-    '.lbl-bitem{display:flex;justify-content:space-between;align-items:center;padding:1mm 0;border-bottom:1px dotted #e0d0c8;font-size:9.5pt;gap:2mm}'+
-    '.lbl-bname{color:#3a2e28;font-weight:600;flex:1}.lbl-bstem{color:#b87888;font-weight:700;font-size:10.5pt;white-space:nowrap}'+
     '.print-btn{display:block;margin:0 auto 16px;padding:12px 32px;background:#8b6458;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}';
   // ページ読み込み後に自動で印刷ダイアログを開く
   var autoprint='<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>';
