@@ -1046,11 +1046,12 @@ var recGeneration=0,recWatchdog=null;
 // AudioContext+MediaRecorderでマイクをアクティブ状態に維持する
 var lastUsedName='',pendingText='',parseTimer=null,PARSE_DELAY=1200;
 var _pendingPartialItem=''; // 本数・箱数が未確認で保留中のテキスト
+var _srLastFinal='',_srLastFinalTime=0; // SR再起動による音声再認識の重複除去
 try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=8000)PARSE_DELAY=_pd2;}catch(e){}
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-0832';
+var APP_VERSION='20260529-1630';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1210,8 +1211,11 @@ function initRec(){
         var as=scoreAlt(at);
         if(as>bestScore){bestText=at;bestScore=as;}
       }
-      var text=applyCorrections(bestText).trim(); if(!text)continue;
+      var text=applyCorrections(bestText).trim(); if(!text){procIdx=i+1;continue;}
       procIdx=i+1;
+      var _tnow=Date.now();
+      if(text===_srLastFinal&&_tnow-_srLastFinalTime<3000){continue;} // SR再起動による重複除去
+      _srLastFinal=text;_srLastFinalTime=_tnow;
       if(pendingCb){var cb=pendingCb;pendingCb=null;stopRecUI();cb(text);}
       else if(continuousMode){
         // ── 保留中テキストがあれば今の入力と統合 ─────────────────
@@ -1518,7 +1522,8 @@ function quickVoice(){
   if(!rec){setStatus('音声入力はこのブラウザで使えません','error');return;}
   if(continuousMode){stopRecAll();return;}
   continuousMode=true;pendingCb=null;
-  var btn=document.getElementById('bigMic'); btn.classList.add('recording');btn.textContent='⏹';
+  var btn=document.getElementById('bigMic');
+  if(btn){btn.classList.add('recording');btn.textContent='⏹';}
   var lbl=document.getElementById('contLabel'); if(lbl)lbl.textContent='⏹ タップして停止';
   setStatus('マイクを確保中…','recording');
   acquireMic(function(ok){
@@ -2289,7 +2294,7 @@ function buildMarketSummaries(){
     var div=document.createElement('div'); div.className='card'; div.style.marginBottom='12px';
     div.innerHTML='<div class="section-title">&#x1F4CB; '+market+'</div>'+
       '<div style="font-size:12px;color:#888;margin-bottom:8px">出荷日：'+date+'　生産者：'+producer+'</div>'+
-      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>数量</th><th>備考</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>数量</th><th>備考</th></tr></thead><tbody>'+rows+_matomeFooterHtml7(mi)+'</tbody></table>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'+
         '<button class="btn-export" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketCSV(\''+market+'\','+mi+')">&#x1F4E5; CSV</button>'+
         '<button class="btn-excel" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketExcel(\''+market+'\','+mi+')">&#x1F4D7; Excel</button>'+
@@ -2305,6 +2310,40 @@ function buildMarketSummaries(){
 }
 function escCsv(s){var v=String(s||'');if(v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0)v='"'+v.replace(/"/g,'""')+'"';return v;}
 function _mixNote(it,mi){return it.note||'';}
+// まとめ行HTML（8列テーブル用 PDF/印刷）
+function _matomeFooterHtml8(mi){
+  var phys=getMatomePhysTotal(mi);if(phys===null)return'';
+  var logTotal=0;Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){if(el.id.match(new RegExp('_'+mi+'$')))logTotal+=parseInt(el.value)||0;});
+  return'<tr style="background:#fff4ee"><td colspan="5" style="text-align:right;font-size:9pt;font-weight:700;color:#8b4535;border:1px solid #e0cfc8;padding:2mm 3mm">〔共箱まとめ〕 論理'+logTotal+'箱 → 実出荷数 ▶</td>'+
+    '<td style="text-align:center;font-size:12pt;font-weight:900;color:#b87888;border:1px solid #e0cfc8;padding:2mm">'+phys+'箱</td>'+
+    '<td colspan="2" style="border:1px solid #e0cfc8"></td></tr>';
+}
+// まとめ行HTML（7列テーブル用 サマリー画面）
+function _matomeFooterHtml7(mi){
+  var phys=getMatomePhysTotal(mi);if(phys===null)return'';
+  var logTotal=0;Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){if(el.id.match(new RegExp('_'+mi+'$')))logTotal+=parseInt(el.value)||0;});
+  return'<tr style="background:#fff4ee"><td colspan="5" style="text-align:right;font-size:11px;font-weight:700;color:#8b4535;padding:4px 6px;border-top:2px solid #f5c8a8">〔共箱まとめ〕 論理'+logTotal+'箱 → 実出荷数 ▶</td>'+
+    '<td style="text-align:center;font-weight:700;color:#b87888;padding:4px 6px;font-size:14px">'+phys+'箱</td>'+
+    '<td style="border-top:2px solid #f5c8a8"></td></tr>';
+}
+// まとめCSV行（品目行の後に追加）
+function _matomeCsvLine(mi){
+  var phys=getMatomePhysTotal(mi);if(phys===null)return'';
+  var logTotal=0;Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){if(el.id.match(new RegExp('_'+mi+'$')))logTotal+=parseInt(el.value)||0;});
+  return ',,,,,'+escCsv('【共箱まとめ】論理'+logTotal+'箱→実'+phys+'箱')+',,\n';
+}
+// まとめXLS行
+function _matomeXlsRow(mi){
+  var phys=getMatomePhysTotal(mi);if(phys===null)return'';
+  var logTotal=0;Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){if(el.id.match(new RegExp('_'+mi+'$')))logTotal+=parseInt(el.value)||0;});
+  return'<Row>'+xlsCell('')+xlsCell('')+xlsCell('')+xlsCell('')+xlsCell('')+xlsCell('【共箱まとめ】論理'+logTotal+'箱 → 実'+phys+'箱')+xlsCell('')+xlsCell('')+'</Row>';
+}
+// まとめテキスト行（メール用）
+function _matomeTextLine(mi){
+  var phys=getMatomePhysTotal(mi);if(phys===null)return'';
+  var logTotal=0;Array.prototype.forEach.call(document.querySelectorAll('[id^="d_"]'),function(el){if(el.id.match(new RegExp('_'+mi+'$')))logTotal+=parseInt(el.value)||0;});
+  return'【共箱まとめ】論理'+logTotal+'箱 → 実'+phys+'箱にてお届け';
+}
 function exportMarketCSV(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var pinfo=loadProducerInfo();
@@ -2320,6 +2359,7 @@ function exportMarketCSV(market,mi){
   csv+='生産者名,'+escCsv(producer)+'\n\n';
   csv+='品目名,品種・色,等級,輪数,規格(cm),箱数,1箱あたり本数,備考\n';
   items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.marketBoxes[mi]+'箱'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(_mixNote(it,mi))].join(',')+'\n';});
+  csv+=_matomeCsvLine(mi);
   var folder=(date||'日付未定')+'/';
   downloadFile(csv,folder+market+' '+(date||'日付未定')+'.csv','text/csv;charset=utf-8;');
   setStatus(market+'の伝票をダウンロードしました');
@@ -2369,6 +2409,7 @@ function exportMarketExcel(market,mi){
   var rows=xlsHead(date,producer,'出荷伝票',market);
   rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','箱数','1箱あたり本数','備考']);
   items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.marketBoxes[mi]+'箱')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(_mixNote(it,mi))+'</Row>';});
+  rows+=_matomeXlsRow(mi);
   var folder=(date||'日付未定')+'/';
   downloadXls(rows,market,folder+market+' '+(date||'日付未定')+'.xls');
   setStatus(market+'のExcelをダウンロードしました');
@@ -2446,7 +2487,7 @@ function printAllMarketsSlips(){
     var tbody=items.map(function(it){
       return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_mixNote(it,mi)+'</td></tr>';
     }).join('');
-    var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
+    var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
     pages.push(
       '<div class="page">'+
       '<h1>出荷伝票　'+market+'</h1>'+
@@ -2474,7 +2515,7 @@ function exportMarketPDF(market,mi){
   var tbody=items.map(function(it){
     return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_mixNote(it,mi)+'</td></tr>';
   }).join('');
-  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
+  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
   var win=window.open('','_blank','width=900,height=750');
   win.document.open();win.document.write(buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market));win.document.close();
   setStatus(market+'の伝票PDFを開きました');
@@ -2546,6 +2587,7 @@ function sendMarketEmail(market,mi){
   items.forEach(function(it){
     bodyLines.push(it.name+(it.variety?' '+it.variety:'')+' '+it.grade+' '+(it.size?it.size+'cm ':'')+it.marketBoxes[mi]+'箱'+(it.perBox>0?' '+it.perBox+it.stemUnit+'/箱':'')+(it.note?' 備考:'+it.note:''));
   });
+  var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
   var body=bodyLines.join('\n');
   var csv='\ufeff出荷伝票\n市場名,'+market+'\n出荷日,'+date+'\n生産者名,'+producer+'\n';
   if(pinfo.addr)csv+='住所,'+pinfo.addr+'\n';
@@ -2553,6 +2595,7 @@ function sendMarketEmail(market,mi){
   if(pcode)csv+='生産者コード,'+pcode+'\n';
   csv+='\n品目名,品種・色,等級,輪数,規格(cm),箱数,1箱あたり本数,備考\n';
   items.forEach(function(it){csv+=[it.name,it.variety,it.grade,it.rings||'',it.size,it.marketBoxes[mi]+'箱',it.perBox>0?it.perBox+it.stemUnit+'/箱':'','"'+it.note+'"'].join(',')+'\n';});
+  csv+=_matomeCsvLine(mi);
   var fname=(date||'日付未定')+'/'+market+' '+(date||'日付未定')+'.csv';
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var file=new File([blob],market+' '+(date||'日付未定')+'.csv',{type:'text/csv'});
@@ -2621,19 +2664,36 @@ function printAllLabels(){
   if(!allData.length){setStatus('振り分けデータがありません','error');return;}
   openLabelWindow(allData);
 }
+function _circledNum(n){return n>=1&&n<=20?String.fromCharCode(0x245F+n):'('+n+')';}
 function openLabelWindow(dataList){
   var allLabels=[];
   dataList.forEach(function(d){
     var mi=MARKETS.indexOf(d.market);
     var pcode=getProducerCode(d.market);
-    d.items.forEach(function(it){
-      var boxes=it.marketBoxes[mi]||0;
-      var stems=it.marketStems[mi]||0;
-      var stemsPerBox=boxes>0&&stems>0?Math.round(stems/boxes):0;
-      for(var b=0;b<boxes;b++){
-        allLabels.push({market:d.market,mi:mi,date:d.date,producer:d.producer,producerCode:pcode,it:it,stemsPerBox:stemsPerBox});
-      }
-    });
+    var physBoxes=_physBoxAssign[mi];
+    if(physBoxes&&physBoxes.length>0){
+      // まとめモード：物理箱単位のラベル（①②③...）
+      var itemMap={};d.items.forEach(function(it){itemMap[it.id]=it;});
+      physBoxes.forEach(function(box,bi){
+        var bItems=Object.keys(box.items).map(function(iid){
+          var it=itemMap[iid];var logQty=box.items[iid];
+          var stems=it?Math.round(logQty*(it.perBox||0)):0;
+          return it?{it:it,logQty:logQty,stems:stems}:null;
+        }).filter(Boolean);
+        allLabels.push({market:d.market,mi:mi,date:d.date,producer:d.producer,producerCode:pcode,
+          physBox:true,boxNum:bi+1,circled:_circledNum(bi+1),boxItems:bItems});
+      });
+    }else{
+      // 通常モード：品目×論理箱数のラベル
+      d.items.forEach(function(it){
+        var boxes=it.marketBoxes[mi]||0;
+        var stems=it.marketStems[mi]||0;
+        var stemsPerBox=boxes>0&&stems>0?Math.round(stems/boxes):0;
+        for(var b=0;b<boxes;b++){
+          allLabels.push({market:d.market,mi:mi,date:d.date,producer:d.producer,producerCode:pcode,it:it,stemsPerBox:stemsPerBox});
+        }
+      });
+    }
   });
   var win=window.open('','_blank','width=900,height=750');
   win.document.open();win.document.write(buildLabelPageHTML(allLabels));win.document.close();
@@ -2643,6 +2703,22 @@ function buildLabelPageHTML(allLabels){
   for(var i=0;i<allLabels.length;i+=PER_PAGE){var chunk=allLabels.slice(i,i+PER_PAGE);while(chunk.length<PER_PAGE)chunk.push(null);pages.push(chunk);}
   function labelCell(entry){
     if(!entry)return'<div class="label label-empty"></div>';
+    if(entry.physBox){
+      // まとめ物理箱ラベル：①②③...を大きく表示し全品目を列挙
+      var bLines=entry.boxItems.map(function(bi){
+        var it=bi.it;
+        var stemTxt=bi.stems>0?('<span class="lbl-bstem">'+bi.stems+it.stemUnit+'</span>'):'';
+        return'<div class="lbl-bitem"><span class="lbl-bname">'+it.name+(it.variety?' '+it.variety:'')+'</span>'+stemTxt+'</div>';
+      }).join('');
+      var codeLine=entry.producerCode?'<div class="lbl-code">コード：'+entry.producerCode+'</div>':'';
+      return'<div class="label">'+
+        '<div class="lbl-market">'+entry.market+'</div>'+
+        '<div class="lbl-boxnum">'+entry.circled+'</div>'+
+        '<div class="lbl-bitems">'+bLines+'</div>'+
+        codeLine+
+        '<div class="lbl-producer">生産者：'+(entry.producer||'')+'</div>'+
+        '<div class="lbl-date">'+entry.date+'</div></div>';
+    }
     var spb=entry.stemsPerBox||0;
     var stemLine=spb>0?'<div class="lbl-count">'+spb+entry.it.stemUnit+'</div>':'';
     var codeLine=entry.producerCode?'<div class="lbl-code">コード：'+entry.producerCode+'</div>':'';
@@ -2679,6 +2755,10 @@ function buildLabelPageHTML(allLabels){
     '.lbl-key{font-size:8pt;color:#9a8880;font-weight:600}.lbl-val{font-size:13pt;font-weight:900;color:#3a2e28}.val-ext{color:#9a4820}'+
     '.lbl-count{font-size:19pt;font-weight:900;text-align:center;color:#3a2e28;line-height:1.1}.lbl-stems{font-size:11pt;font-weight:700;color:#6e5a50;margin-left:4pt}'+
     '.lbl-note{font-size:9pt;color:#9a4820;font-weight:700;text-align:center;background:#fef8e8;border-radius:2mm;padding:1mm}.lbl-producer{font-size:8.5pt;color:#8b6458;font-weight:700;text-align:center;margin-top:1mm}.lbl-date{font-size:7.5pt;color:#b0a0a0;text-align:right}'+
+    '.lbl-boxnum{font-size:36pt;font-weight:900;text-align:center;color:#b87888;line-height:1;margin:2mm 0}'+
+    '.lbl-bitems{flex:1;overflow:hidden;margin:1mm 0}'+
+    '.lbl-bitem{display:flex;justify-content:space-between;align-items:center;padding:1mm 0;border-bottom:1px dotted #e0d0c8;font-size:9.5pt;gap:2mm}'+
+    '.lbl-bname{color:#3a2e28;font-weight:600;flex:1}.lbl-bstem{color:#b87888;font-weight:700;font-size:10.5pt;white-space:nowrap}'+
     '.print-btn{display:block;margin:0 auto 16px;padding:12px 32px;background:#8b6458;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}';
   // ページ読み込み後に自動で印刷ダイアログを開く
   var autoprint='<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>';
@@ -3430,6 +3510,7 @@ function shareViaLine(market,mi){
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
   var text='[出荷伝票]'+market+' '+date+'\n生産者：'+producer+'\n'+
     items.map(function(it){return it.name+' '+it.variety+' '+it.grade+' '+it.marketBoxes[mi]+'箱';}).join('\n');
+  var mt=_matomeTextLine(mi);if(mt)text+='\n'+mt;
   window.open('https://line.me/R/share?text='+encodeURIComponent(text),'_blank');
 }
 
