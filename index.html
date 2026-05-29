@@ -1050,11 +1050,13 @@ var permissionGranted=false; // diagnoseMic・エラーUI用
 var lastUsedName='',pendingText='',parseTimer=null,PARSE_DELAY=1200;
 var _pendingPartialItem='';
 var _srLastFinal='',_srLastFinalTime=0;
+var _srPaused=false;   // バックグラウンド時SR一時停止フラグ
+var _srLastError='';   // 直前エラー種別（再起動遅延調整用）
 try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=8000)PARSE_DELAY=_pd2;}catch(e){}
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2102';
+var APP_VERSION='20260529-2124';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1204,6 +1206,7 @@ function _srStart(){
 
   r.onstart=function(){
     if(_srGeneration!==myGen)return;
+    _srLastError='';
     permissionGranted=true;
     setStatus('マイク有効 — 話しかけてください','recording');
   };
@@ -1281,29 +1284,55 @@ function _srStart(){
   r.onerror=function(e){
     if(_srGeneration!==myGen)return;
     if(e.error==='no-speech'||e.error==='aborted')return; // 正常系
-    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+    if(e.error==='not-allowed'){
+      _srOn=false;pendingCb=null;stopRecUI();
+      setStatus('マイク許可が必要です。ブラウザの設定を確認してください','error');
+      showMicHelp();
+      return;
+    }
+    if(e.error==='service-not-allowed'){
       if(!permissionGranted){
         _srOn=false;pendingCb=null;stopRecUI();
         setStatus('マイク許可が必要です。ブラウザの設定を確認してください','error');
         showMicHelp();
+      } else {
+        // 許可済みだがサービス一時不可 → 少し待って再起動
+        _srLastError='service-not-allowed';
+        setStatus('音声サービスに一時的にアクセスできません。しばらくお待ちください…','recording');
       }
-      // 許可済みなら onend で自動リトライ
       return;
     }
-    // network / audio-capture など → onend で再起動
+    if(e.error==='network'){
+      _srLastError='network';
+      setStatus('ネットワーク接続を確認してください（音声認識はオンラインが必要です）','error');
+      return;
+    }
+    if(e.error==='audio-capture'){
+      _srLastError='audio-capture';
+      setStatus('マイクを他のアプリが使用中の可能性があります。他のアプリを閉じて再試行してください','error');
+      return;
+    }
+    // その他の未知エラー → onend で再起動
+    _srLastError=e.error;
     console.warn('SR error:',e.error);
   };
 
   r.onend=function(){
     if(_srGeneration!==myGen)return;
     _srRec=null;
+    if(_srPaused)return; // バックグラウンド中は再起動しない
     if(_srOn||pendingCb){
-      // 連続モード：自動再起動（遅延はモバイルで少し長め）
+      // 連続モード：自動再起動
+      // network/service-not-allowed エラー後は長めの遅延で再試行
+      var _restartDelay=(isMobile?600:300);
+      if(_srLastError==='network'||_srLastError==='service-not-allowed'||_srLastError==='audio-capture'){
+        _restartDelay=3000;
+      }
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
         _srRestartTimer=null;
-        if(_srOn||pendingCb)_srStart();
-      },isMobile?600:300);
+        if(!_srPaused&&(_srOn||pendingCb))_srStart();
+      },_restartDelay);
     } else {
       stopRecUI();
     }
@@ -1323,6 +1352,26 @@ function _srStart(){
     }
   }
 }
+// ── バックグラウンド切り替え時のSR一時停止/再開 ─────────────────────────
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden'){
+    // バックグラウンドへ：SR停止（バッテリー消費・無限ループ防止）
+    _srPaused=true;
+    clearTimeout(_srRestartTimer);_srRestartTimer=null;
+    if(_srRec){try{_srRec.abort();}catch(ex){}}_srRec=null;
+  } else {
+    // フォアグラウンドへ：SR再開（800ms 待機後）
+    _srPaused=false;
+    if(_srOn||pendingCb){
+      clearTimeout(_srRestartTimer);
+      _srRestartTimer=setTimeout(function(){
+        _srRestartTimer=null;
+        if(!_srPaused&&(_srOn||pendingCb))_srStart();
+      },800);
+    }
+  }
+},false);
+
 if(!SR){document.getElementById('noSupport').style.display='block';}
 (function(){var sel=document.getElementById('parseDelaySel');if(sel){sel.value=String(PARSE_DELAY);if(!sel.value)sel.value='2800';}})();
 // バージョン表示を初期化
