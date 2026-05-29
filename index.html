@@ -1051,7 +1051,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-1636';
+var APP_VERSION='20260529-1713';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1214,7 +1214,8 @@ function initRec(){
       var text=applyCorrections(bestText).trim(); if(!text){procIdx=i+1;continue;}
       procIdx=i+1;
       var _tnow=Date.now();
-      if(text===_srLastFinal&&_tnow-_srLastFinalTime<3000){continue;} // SR再起動による重複除去
+      var _dedupWin=Math.max(5000,PARSE_DELAY+2500); // パースタイマー全体をカバーするウィンドウ
+      if(text===_srLastFinal&&_tnow-_srLastFinalTime<_dedupWin){_srLastFinalTime=_tnow;continue;} // SR再起動による重複除去（タイマーリフレッシュ）
       _srLastFinal=text;_srLastFinalTime=_tnow;
       if(pendingCb){var cb=pendingCb;pendingCb=null;stopRecUI();cb(text);}
       else if(continuousMode){
@@ -1280,10 +1281,11 @@ function initRec(){
   };
   rec.onend=function(){
     if(recGeneration!==myGen)return; // 古い世代のイベントは無視
-    var wasRunning=sessionStarted; sessionStarted=false;
-    if(wasRunning&&(continuousMode||pendingCb)){
-      scheduleRestart(isMobile?500:300); // モバイルは少し長めに待つ
-    } else if(!continuousMode&&!pendingCb){stopRecUI();}
+    sessionStarted=false;
+    if(continuousMode||pendingCb){
+      // wasRunning の有無に関わらず再起動（onstart未着でも回復するため）
+      scheduleRestart(isMobile?500:300);
+    } else {stopRecUI();}
   };
 }
 // ── マイクを確保しAudioContext+MediaRecorderでアクティブ状態を維持 ──
@@ -1495,7 +1497,9 @@ function _startRecWithWatchdog(){
       }
     },isMobile?5000:3000);
   }catch(e){
-    setStatus('音声認識の起動に失敗しました。ページを再読み込みしてください','error');
+    // start()失敗（invalid-state等）→ 継続中なら自動リトライ
+    if(continuousMode||pendingCb){scheduleRestart(isMobile?800:500);}
+    else{setStatus('音声認識の起動に失敗しました。ページを再読み込みしてください','error');}
   }
 }
 function startRec(cb,micEl){
