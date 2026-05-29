@@ -1054,7 +1054,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2052';
+var APP_VERSION='20260529-2102';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1238,6 +1238,7 @@ function _srStart(){
       } else if(_srOn){
         // 連続モード：テキスト処理
         if(_pendingPartialItem){
+          // 保留中（未完成）アイテムがある → 異なる品目なら先に確定
           var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
           if(_nf&&_pf&&_nf!==_pf){
             parseAndAddItem(_pendingPartialItem);updateLastNameHint();
@@ -1245,6 +1246,13 @@ function _srStart(){
           } else {
             pendingText=_pendingPartialItem+' '+text;_pendingPartialItem='';
           }
+        } else if(pendingText&&_isItemComplete(pendingText)){
+          // ★ 直前アイテムが完成済みで新テキストが来た → 即確定して新規開始
+          // （連続指示で次の品目が前の品種名に混入するバグを防ぐ）
+          clearTimeout(parseTimer);parseTimer=null;
+          var _prev=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
+          parseAndAddItem(_prev);setStatus('「'+_prev+'」を追加','ok');updateLastNameHint();
+          pendingText=text;
         } else {
           pendingText+=(pendingText?' ':'')+text;
         }
