@@ -1035,37 +1035,25 @@ function _extractFlowerFromText(text){
   for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){if(t.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0)return FLOWER_NAME_MAP[fi].canonical;}
   return '';
 }
-// 「バラ 10本 2箱 菊 5本 1箱」のように1発話に複数品目が入った場合に花名境界で分割する
-// 例: "バラ 10本 2箱 菊 5本 1箱" → ["バラ 10本 2箱","菊 5本 1箱"]
+// 1発話に複数品目が入った場合に「N箱」境界で分割する。
+// 各品目は必ず箱数で終わるため、品目名を省略（lastUsedName利用）しても確実に分割できる。
+// 例: "バラ 10本 2箱 菊 5本 1箱"        → ["バラ 10本 2箱","菊 5本 1箱"]
+// 例: "赤 10本 2箱 白 5本 1箱"(品目名省略) → ["赤 10本 2箱","白 5本 1箱"]
 function _splitItemTexts(text){
-  var t=applyCorrections(text);
-  // 全花名パターンの出現位置を収集
-  var matches=[];
-  for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){
-    var pat=FLOWER_NAME_MAP[fi].pattern;
-    var idx=t.indexOf(pat);
-    while(idx>=0){
-      matches.push({start:idx,end:idx+pat.length});
-      idx=t.indexOf(pat,idx+1);
-    }
-  }
-  if(matches.length<=1)return [text];
-  // 位置順ソート（同位置は長いものを優先）
-  matches.sort(function(a,b){return a.start!==b.start?a.start-b.start:b.end-a.end;});
-  // 重複・包含除去
-  var nonOv=[],lastEnd=-1;
-  for(var i=0;i<matches.length;i++){
-    if(matches[i].start>=lastEnd){nonOv.push(matches[i]);lastEnd=matches[i].end;}
-  }
-  if(nonOv.length<=1)return [text];
-  // 2番目以降の花名の直前で分割
-  var parts=[];
-  for(var i=0;i<nonOv.length;i++){
-    var start=(i===0)?0:nonOv[i].start;
-    var end=(i+1<nonOv.length)?nonOv[i+1].start:t.length;
-    var part=t.slice(start,end).trim();
+  var t=kanjiToNum(applyCorrections(text));
+  // 各品目末尾の「N箱」の直後を区切りとする
+  var boxRe=/\d+\s*箱/g,m,bounds=[];
+  while((m=boxRe.exec(t))!==null){bounds.push(m.index+m[0].length);}
+  if(bounds.length<=1)return [text]; // 箱が1つ以下 → 単一品目
+  var parts=[],start=0;
+  for(var i=0;i<bounds.length;i++){
+    var part=t.slice(start,bounds[i]).trim();
     if(part)parts.push(part);
+    start=bounds[i];
   }
+  // 最後の箱より後ろに残り（未完成の次品目など）があれば独立した断片として扱う
+  var tail=t.slice(start).trim();
+  if(tail)parts.push(tail);
   return parts.length>1?parts:[text];
 }
 
@@ -1089,7 +1077,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2241';
+var APP_VERSION='20260529-2252';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
