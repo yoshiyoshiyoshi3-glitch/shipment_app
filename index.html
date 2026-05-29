@@ -1036,24 +1036,25 @@ function _extractFlowerFromText(text){
   return '';
 }
 
-// ── Speech Recognition ───────────────────────────────────────────────
+// ── Speech Recognition (rebuilt) ─────────────────────────────────────
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-var rec=null,pendingCb=null,currentMicEl=null,continuousMode=false,procIdx=0;
-var sessionStarted=false,permissionGranted=false,restartTimer=null;
-var micStream=null,micCtx=null,micSource=null,micKeepAlive=null;
-// モバイル判定（Android/iOS）
 var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-// recインスタンスの世代番号（abort後の古いonendによる誤再起動を防ぐ）
-var recGeneration=0,recWatchdog=null;
-// AudioContext+MediaRecorderでマイクをアクティブ状態に維持する
+// シンプル状態管理（continuous=false 方式でモバイル互換）
+var _srOn=false;           // 連続モードON/OFF
+var _srRec=null;           // 現在のSRインスタンス
+var _srGeneration=0;       // 世代番号（古いコールバック破棄用）
+var _srRestartTimer=null;  // 再起動タイマー
+var pendingCb=null,currentMicEl=null;
+var permissionGranted=false; // diagnoseMic・エラーUI用
+// テキスト処理（変更なし）
 var lastUsedName='',pendingText='',parseTimer=null,PARSE_DELAY=1200;
-var _pendingPartialItem=''; // 本数・箱数が未確認で保留中のテキスト
-var _srLastFinal='',_srLastFinalTime=0; // SR再起動による音声再認識の重複除去
+var _pendingPartialItem='';
+var _srLastFinal='',_srLastFinalTime=0;
 try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=8000)PARSE_DELAY=_pd2;}catch(e){}
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-1725';
+var APP_VERSION='20260529-2052';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1186,26 +1187,33 @@ if('serviceWorker' in navigator){
   });
 }
 
-function initRec(){
+// ── SR コア：毎回新インスタンス、continuous=false でモバイル完全対応 ──
+function _srStart(){
   if(!SR)return;
-  if(rec){try{rec.abort();}catch(e){}}
-  var myGen=++recGeneration; // このrecインスタンスの世代番号（古いonendの誤起動を防ぐ）
-  rec=new SR();
-  rec.lang='ja-JP';
-  rec.continuous=true;
-  rec.interimResults=true; rec.maxAlternatives=6;
-  rec.onstart=function(){
-    if(recGeneration!==myGen)return;
-    clearTimeout(recWatchdog);recWatchdog=null;
-    procIdx=0;sessionStarted=true;permissionGranted=true;
+  // 既存インスタンスをクリーンアップ
+  if(_srRec){try{_srRec.abort();}catch(e){}}_srRec=null;
+  clearTimeout(_srRestartTimer);_srRestartTimer=null;
+
+  var myGen=++_srGeneration;
+  var r=new SR();
+  r.lang='ja-JP';
+  r.continuous=false;        // モバイル互換のため false（発話単位で1セッション）
+  r.interimResults=true;
+  r.maxAlternatives=6;
+  _srRec=r;
+
+  r.onstart=function(){
+    if(_srGeneration!==myGen)return;
+    permissionGranted=true;
     setStatus('マイク有効 — 話しかけてください','recording');
   };
-  rec.onresult=function(e){
-    if(recGeneration!==myGen)return;
+
+  r.onresult=function(e){
+    if(_srGeneration!==myGen)return;
     var interim='';
-    for(var i=procIdx;i<e.results.length;i++){
+    for(var i=0;i<e.results.length;i++){
       if(!e.results[i].isFinal){interim+=e.results[i][0].transcript;continue;}
-      // 複数候補から花名・数字を含むものを優先して選択
+      // 複数候補から花名・数字を含むものを優先選択
       var bestText=e.results[i][0].transcript;
       var bestScore=scoreAlt(bestText);
       for(var alt=1;alt<e.results[i].length;alt++){
@@ -1213,30 +1221,34 @@ function initRec(){
         var as=scoreAlt(at);
         if(as>bestScore){bestText=at;bestScore=as;}
       }
-      var text=applyCorrections(bestText).trim(); if(!text){procIdx=i+1;continue;}
-      procIdx=i+1;
+      var text=applyCorrections(bestText).trim();
+      if(!text)continue;
+      // SR再起動による重複除去（ウィンドウ内同一テキストはスキップ、ヒット時リフレッシュ）
       var _tnow=Date.now();
-      var _dedupWin=Math.max(5000,PARSE_DELAY+2500); // パースタイマー全体をカバーするウィンドウ
-      if(text===_srLastFinal&&_tnow-_srLastFinalTime<_dedupWin){_srLastFinalTime=_tnow;continue;} // SR再起動による重複除去（タイマーリフレッシュ）
+      var _dedupWin=Math.max(5000,PARSE_DELAY+2500);
+      if(text===_srLastFinal&&_tnow-_srLastFinalTime<_dedupWin){
+        _srLastFinalTime=_tnow;continue;
+      }
       _srLastFinal=text;_srLastFinalTime=_tnow;
-      if(pendingCb){var cb=pendingCb;pendingCb=null;stopRecUI();cb(text);}
-      else if(continuousMode){
-        // ── 保留中テキストがあれば今の入力と統合 ─────────────────
+
+      if(pendingCb){
+        // コールバックモード（単発入力）
+        var cb=pendingCb;pendingCb=null;_srOn=false;
+        stopRecUI();cb(text);
+      } else if(_srOn){
+        // 連続モード：テキスト処理
         if(_pendingPartialItem){
           var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
           if(_nf&&_pf&&_nf!==_pf){
-            // 異なる品目 → 保留分を先に追加して新品目へ
             parseAndAddItem(_pendingPartialItem);updateLastNameHint();
             _pendingPartialItem='';pendingText=text;
           } else {
-            // 同じ品目の続き → テキストを統合
             pendingText=_pendingPartialItem+' '+text;_pendingPartialItem='';
           }
         } else {
           pendingText+=(pendingText?' ':'')+text;
         }
         clearTimeout(parseTimer);
-        // 本数+箱数が揃っていれば0.6秒で即確定、未完成なら待ち時間いっぱい待つ
         var _delay=_isItemComplete(pendingText)?Math.min(600,PARSE_DELAY):PARSE_DELAY;
         parseTimer=setTimeout(function(){
           parseTimer=null;
@@ -1245,7 +1257,6 @@ function initRec(){
           if(_isItemComplete(combined)){
             parseAndAddItem(combined);setStatus('「'+combined+'」を追加 — 次を話してください','ok');updateLastNameHint();
           } else {
-            // 未完成 → 保留して続きを促す（品目名だけ/品種名だけ など）
             _pendingPartialItem=combined;
             var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
             setStatus('⏳ 続きをどうぞ（本数・箱数） ▶「'+_hint+'」','recording');
@@ -1256,117 +1267,55 @@ function initRec(){
     if(interim){
       var _pre=_pendingPartialItem?'【'+(_pendingPartialItem.length>14?_pendingPartialItem.slice(0,14)+'…':_pendingPartialItem)+'】 ':(pendingText?pendingText+' ':'');
       setStatus('認識中…「'+_pre+interim+'」','recording');
-    } else if(pendingText&&continuousMode){setStatus('認識中…「'+pendingText+'」','recording');}
-    // _pendingPartialItem のみの場合はタイマーが設定したステータスを維持する
+    } else if(pendingText&&_srOn){setStatus('認識中…「'+pendingText+'」','recording');}
   };
-  rec.onerror=function(e){
-    if(recGeneration!==myGen)return;
-    if(e.error==='no-speech'||e.error==='aborted')return;
-    sessionStarted=false;
-    if(e.error==='not-allowed'){
-      // すでに許可済みなら既存ストリームを保持したまま認識だけ再起動（許可プロンプトの再表示を防ぐ）
-      if(permissionGranted){scheduleRestart(1500);}
-      else{continuousMode=false;pendingCb=null;stopRecUI();
-        setStatus('マイク許可が必要です。ブラウザのアドレスバーから「許可」を選んでください','error');
-        showMicHelp();
-      }
-      return;
-    }
-    if(e.error==='service-not-allowed'){
-      if(permissionGranted){scheduleRestart(700);}
-      else{continuousMode=false;pendingCb=null;stopRecUI();setStatus('音声認識サービスに接続できません。インターネット接続を確認してください','error');}
-      return;
-    }
-    // network / audio-capture など未知のエラー → 許可済みなら再起動
-    if(permissionGranted&&(continuousMode||pendingCb)){scheduleRestart(1200);}
-    else{setStatus('音声認識エラー: '+e.error,'error');}
-  };
-  rec.onend=function(){
-    if(recGeneration!==myGen)return; // 古い世代のイベントは無視
-    sessionStarted=false;
-    if(continuousMode||pendingCb){
-      // wasRunning の有無に関わらず再起動（onstart未着でも回復するため）
-      scheduleRestart(isMobile?500:300);
-    } else {stopRecUI();}
-  };
-}
-// ── マイクを確保しAudioContext+MediaRecorderでアクティブ状態を維持 ──
-function acquireMic(callback){
-  // モバイルはgetUserMediaをスキップしてSpeechRecognitionに直接マイクを任せる
-  // （getUserMediaが排他ロックを取るとSpeechRecognitionが起動できない端末への対策）
-  if(isMobile){
-    permissionGranted=true;
-    if(callback)callback(true);
-    return;
-  }
-  // すでにストリームが生きていればそのまま使う
-  if(micStream&&micStream.active&&micCtx&&micCtx.state!=='closed'){
-    if(micCtx.state==='suspended'){micCtx.resume().catch(function(){});}
-    permissionGranted=true;if(callback)callback(true);return;
-  }
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    if(callback)callback(true);return;
-  }
-  // ノイズ抑制・エコー除去・自動ゲインで聞き取りやすい音声に
-  var audioConstraints={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
-  navigator.mediaDevices.getUserMedia({audio:audioConstraints,video:false})
-    .catch(function(){return navigator.mediaDevices.getUserMedia({audio:true,video:false});}) // 制約非対応端末へのフォールバック
-    .then(function(stream){
-      micStream=stream;
-      permissionGranted=true;
-      // ① AudioContext（PCのみ：モバイルはSpeechRecognitionと競合するためスキップ）
-      if(!isMobile){
-        try{
-          micCtx=new(window.AudioContext||window.webkitAudioContext)();
-          micSource=micCtx.createMediaStreamSource(stream);
-          var gain=micCtx.createGain(); gain.gain.value=0;
-          micSource.connect(gain); gain.connect(micCtx.destination);
-        }catch(ex){console.warn('AudioContext失敗',ex);}
-      }
-      // ② MediaRecorder（PCのみ：Androidはマイク排他制御でSpeechRecognitionと競合するためスキップ）
-      if(!isMobile){
-        try{
-          if(micKeepAlive&&micKeepAlive.state==='recording'){micKeepAlive.stop();}
-          micKeepAlive=new MediaRecorder(stream);
-          micKeepAlive.ondataavailable=function(){};
-          micKeepAlive.start(10000);
-        }catch(ex){console.warn('MediaRecorder失敗',ex);}
-      }
-      setStatus('マイク準備完了','ok');
-      if(callback)callback(true);
-    })
-    .catch(function(err){
-      permissionGranted=false;
-      continuousMode=false;pendingCb=null;stopRecUI();
-      if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){
-        setStatus('マイクの使用を許可してください（ブラウザの設定を確認）','error');
-        showMicHelp();
-      }else{
-        setStatus('マイクにアクセスできません：'+err.message,'error');
-      }
-      if(callback)callback(false);
-    });
-}
 
-// 再起動を一元管理：重複タイマーを防ぎ、マイクが切れていたら再確保してから起動
-function scheduleRestart(delay){
-  clearTimeout(restartTimer);
-  restartTimer=setTimeout(function(){
-    restartTimer=null;
-    if(!continuousMode&&!pendingCb)return;
-    acquireMic(function(ok){
-      if(!ok)return;
-      _startRecWithWatchdog();
-    });
-  },delay||300);
-}
-// バックグラウンド復帰時にAudioContextを再開（リスナーは一度だけ登録）
-document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible'&&micCtx&&micCtx.state==='suspended'){
-    micCtx.resume().catch(function(){});
+  r.onerror=function(e){
+    if(_srGeneration!==myGen)return;
+    if(e.error==='no-speech'||e.error==='aborted')return; // 正常系
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      if(!permissionGranted){
+        _srOn=false;pendingCb=null;stopRecUI();
+        setStatus('マイク許可が必要です。ブラウザの設定を確認してください','error');
+        showMicHelp();
+      }
+      // 許可済みなら onend で自動リトライ
+      return;
+    }
+    // network / audio-capture など → onend で再起動
+    console.warn('SR error:',e.error);
+  };
+
+  r.onend=function(){
+    if(_srGeneration!==myGen)return;
+    _srRec=null;
+    if(_srOn||pendingCb){
+      // 連続モード：自動再起動（遅延はモバイルで少し長め）
+      clearTimeout(_srRestartTimer);
+      _srRestartTimer=setTimeout(function(){
+        _srRestartTimer=null;
+        if(_srOn||pendingCb)_srStart();
+      },isMobile?600:300);
+    } else {
+      stopRecUI();
+    }
+  };
+
+  try{
+    r.start();
+  }catch(e){
+    console.warn('SR start() failed:',e);
+    _srRec=null;
+    if(_srOn||pendingCb){
+      clearTimeout(_srRestartTimer);
+      _srRestartTimer=setTimeout(function(){
+        _srRestartTimer=null;
+        if(_srOn||pendingCb)_srStart();
+      },isMobile?1000:500);
+    }
   }
-},false);
-if(!SR){document.getElementById('noSupport').style.display='block';}else{initRec();}
+}
+if(!SR){document.getElementById('noSupport').style.display='block';}
 (function(){var sel=document.getElementById('parseDelaySel');if(sel){sel.value=String(PARSE_DELAY);if(!sel.value)sel.value='2800';}})();
 // バージョン表示を初期化
 (function(){var el=document.getElementById('currentVersionLabel');if(el)el.textContent=APP_VERSION;})();
@@ -1465,7 +1414,7 @@ function showMicHelp(){
 }
 function stopRecUI(){
   if(currentMicEl){currentMicEl.classList.remove('recording');currentMicEl.textContent='🎤';currentMicEl=null;}
-  if(!continuousMode&&!pendingCb){
+  if(!_srOn&&!pendingCb){
     var bm=document.getElementById('bigMic');
     if(bm){bm.classList.remove('recording');bm.textContent='🎤';}
     var lbl=document.getElementById('contLabel');
@@ -1473,47 +1422,27 @@ function stopRecUI(){
   }
 }
 function stopRecAll(){
-  continuousMode=false;pendingCb=null;
-  clearTimeout(restartTimer);restartTimer=null;
-  clearTimeout(recWatchdog);recWatchdog=null;
+  _srOn=false;pendingCb=null;
+  clearTimeout(_srRestartTimer);_srRestartTimer=null;
   clearTimeout(parseTimer);parseTimer=null;
   // 保留中テキスト＋pendingTextを統合して確定
   var _allPending=((_pendingPartialItem?_pendingPartialItem+' ':'')+pendingText).trim();
   _pendingPartialItem='';pendingText='';
   if(_allPending){var t=_allPending.replace(/[。、！？]+$/,'');parseAndAddItem(t);setStatus('「'+t+'」を追加しました');}
   else{setStatus('連続入力を停止しました');}
-  try{rec&&rec.stop();}catch(e){}
+  if(_srRec){try{_srRec.stop();}catch(e){}}_srRec=null;
   stopRecUI();
 }
-function _startRecWithWatchdog(){
-  procIdx=0;initRec();
-  try{
-    rec.start();
-    // onstart が来ない場合に備えたウォッチドッグ（モバイルでstart()がサイレントに失敗する場合の対策）
-    clearTimeout(recWatchdog);
-    recWatchdog=setTimeout(function(){
-      recWatchdog=null;
-      if(!sessionStarted&&(continuousMode||pendingCb)){
-        setStatus('マイク起動を再試行中…','recording');
-        scheduleRestart(600);
-      }
-    },isMobile?5000:3000);
-  }catch(e){
-    // start()失敗（invalid-state等）→ 継続中なら自動リトライ
-    if(continuousMode||pendingCb){scheduleRestart(isMobile?800:500);}
-    else{setStatus('音声認識の起動に失敗しました。ページを再読み込みしてください','error');}
-  }
-}
 function startRec(cb,micEl){
-  if(!rec){setStatus('音声入力はこのブラウザで使えません','error');return;}
-  continuousMode=false;pendingCb=cb;
+  if(!SR){setStatus('音声入力はこのブラウザで使えません','error');return;}
+  // 連続モードを止めてコールバックモードへ
+  _srOn=false;
+  clearTimeout(_srRestartTimer);_srRestartTimer=null;
+  if(_srRec){try{_srRec.abort();}catch(e){}}_srRec=null;
+  pendingCb=cb;
   if(micEl){micEl.classList.add('recording');micEl.textContent='●';currentMicEl=micEl;}
-  setStatus('マイクを確保中…','recording');
-  acquireMic(function(ok){
-    if(!ok){pendingCb=null;stopRecUI();return;}
-    setStatus('話しかけてください…','recording');
-    if(!sessionStarted){_startRecWithWatchdog();}
-  });
+  setStatus('話しかけてください…','recording');
+  _srStart();
 }
 function setParseDelay(v){var n=parseInt(v);if(!n)n=2800;PARSE_DELAY=n;try{localStorage.setItem('parseDelay',String(n));}catch(e){}setStatus('待ち時間を'+(n/1000)+'秒に設定しました','ok');}
 function setStatus(msg,type){
@@ -1525,18 +1454,19 @@ function updateLastNameHint(){
   if(h)h.textContent=lastUsedName?('現在の品目：'+lastUsedName+'（品目名は省略可）'):'';
 }
 function quickVoice(){
-  if(!rec){setStatus('音声入力はこのブラウザで使えません','error');return;}
-  if(continuousMode){stopRecAll();return;}
-  continuousMode=true;pendingCb=null;
+  if(!SR){setStatus('音声入力はこのブラウザで使えません','error');return;}
+  if(_srOn){
+    // 停止
+    stopRecAll();
+    return;
+  }
+  // 開始
+  _srOn=true;pendingCb=null;
   var btn=document.getElementById('bigMic');
   if(btn){btn.classList.add('recording');btn.textContent='⏹';}
-  var lbl=document.getElementById('contLabel'); if(lbl)lbl.textContent='⏹ タップして停止';
-  setStatus('マイクを確保中…','recording');
-  acquireMic(function(ok){
-    if(!ok){continuousMode=false;stopRecUI();return;}
-    setStatus('連続入力中 — 話しかけてください（品目・品種・本数・箱数）','recording');
-    if(!sessionStarted){_startRecWithWatchdog();}
-  });
+  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ タップして停止';
+  setStatus('連続入力中 — 話しかけてください（品目・品種・本数・箱数）','recording');
+  _srStart();
 }
 
 // ── パース ────────────────────────────────────────────────────────────
