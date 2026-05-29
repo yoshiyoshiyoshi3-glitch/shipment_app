@@ -1035,6 +1035,39 @@ function _extractFlowerFromText(text){
   for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){if(t.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0)return FLOWER_NAME_MAP[fi].canonical;}
   return '';
 }
+// 「バラ 10本 2箱 菊 5本 1箱」のように1発話に複数品目が入った場合に花名境界で分割する
+// 例: "バラ 10本 2箱 菊 5本 1箱" → ["バラ 10本 2箱","菊 5本 1箱"]
+function _splitItemTexts(text){
+  var t=applyCorrections(text);
+  // 全花名パターンの出現位置を収集
+  var matches=[];
+  for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){
+    var pat=FLOWER_NAME_MAP[fi].pattern;
+    var idx=t.indexOf(pat);
+    while(idx>=0){
+      matches.push({start:idx,end:idx+pat.length});
+      idx=t.indexOf(pat,idx+1);
+    }
+  }
+  if(matches.length<=1)return [text];
+  // 位置順ソート（同位置は長いものを優先）
+  matches.sort(function(a,b){return a.start!==b.start?a.start-b.start:b.end-a.end;});
+  // 重複・包含除去
+  var nonOv=[],lastEnd=-1;
+  for(var i=0;i<matches.length;i++){
+    if(matches[i].start>=lastEnd){nonOv.push(matches[i]);lastEnd=matches[i].end;}
+  }
+  if(nonOv.length<=1)return [text];
+  // 2番目以降の花名の直前で分割
+  var parts=[];
+  for(var i=0;i<nonOv.length;i++){
+    var start=(i===0)?0:nonOv[i].start;
+    var end=(i+1<nonOv.length)?nonOv[i+1].start:t.length;
+    var part=t.slice(start,end).trim();
+    if(part)parts.push(part);
+  }
+  return parts.length>1?parts:[text];
+}
 
 // ── Speech Recognition (rebuilt) ─────────────────────────────────────
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -1056,7 +1089,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2124';
+var APP_VERSION='20260529-2241';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1251,10 +1284,11 @@ function _srStart(){
           }
         } else if(pendingText&&_isItemComplete(pendingText)){
           // ★ 直前アイテムが完成済みで新テキストが来た → 即確定して新規開始
-          // （連続指示で次の品目が前の品種名に混入するバグを防ぐ）
           clearTimeout(parseTimer);parseTimer=null;
           var _prev=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
-          parseAndAddItem(_prev);setStatus('「'+_prev+'」を追加','ok');updateLastNameHint();
+          var _prevPts=_splitItemTexts(_prev);
+          for(var _pvi=0;_pvi<_prevPts.length;_pvi++){var _pvp=_prevPts[_pvi].trim();if(_pvp){parseAndAddItem(_pvp);}}
+          setStatus('「'+_prev+'」を追加','ok');updateLastNameHint();
           pendingText=text;
         } else {
           pendingText+=(pendingText?' ':'')+text;
@@ -1266,7 +1300,11 @@ function _srStart(){
           var combined=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
           if(!combined)return;
           if(_isItemComplete(combined)){
-            parseAndAddItem(combined);setStatus('「'+combined+'」を追加 — 次を話してください','ok');updateLastNameHint();
+            // ★ 複数品目が1発話に入った場合（「バラ10本2箱 菊5本1箱」等）を花名境界で分割
+            var _pts=_splitItemTexts(combined);
+            for(var _pti=0;_pti<_pts.length;_pti++){var _pp=_pts[_pti].trim();if(_pp){parseAndAddItem(_pp);}}
+            updateLastNameHint();
+            setStatus('「'+_pts[_pts.length-1]+'」を追加 — 次を話してください','ok');
           } else {
             _pendingPartialItem=combined;
             var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
@@ -1485,8 +1523,12 @@ function stopRecAll(){
   // 保留中テキスト＋pendingTextを統合して確定
   var _allPending=((_pendingPartialItem?_pendingPartialItem+' ':'')+pendingText).trim();
   _pendingPartialItem='';pendingText='';
-  if(_allPending){var t=_allPending.replace(/[。、！？]+$/,'');parseAndAddItem(t);setStatus('「'+t+'」を追加しました');}
-  else{setStatus('連続入力を停止しました');}
+  if(_allPending){
+    var t=_allPending.replace(/[。、！？]+$/,'');
+    var _stopPts=_splitItemTexts(t);
+    for(var _spi=0;_spi<_stopPts.length;_spi++){var _spp=_stopPts[_spi].trim();if(_spp){parseAndAddItem(_spp);}}
+    setStatus('「'+t+'」を追加しました');
+  } else{setStatus('連続入力を停止しました');}
   if(_srRec){try{_srRec.stop();}catch(e){}}_srRec=null;
   stopRecUI();
 }
