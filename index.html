@@ -679,6 +679,27 @@
       <span id="gaichiSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
     </div>
   </div>
+
+  <div class="card" style="margin-top:12px">
+    <div class="section-title">&#x1F4DD; 備考マスタ（品質・注文内容の言葉）</div>
+    <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.7;background:var(--sage-light);border-radius:6px;padding:7px 10px;border:1px solid rgba(122,158,130,0.25)">
+      &#x2139; ここに登録した言葉を音声入力で言うと、品種・色ではなく<b>備考欄</b>に入ります。<br>
+      花の品質（つぼみ・満開など）や注文内容（特注・予約など）の言葉を登録できます。<br>
+      ※「曲がり」「傷」など等級が「外」になる言葉は、上の<b>外等級キーワード</b>に登録してください。
+    </div>
+    <div id="noteKeywordsContainer" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;min-height:36px;padding:6px;background:#FAFAFA;border:1px solid var(--border);border-radius:6px"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="noteKeywordInput" placeholder="言葉を入力（例：つぼみ）"
+        style="font-size:14px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;width:200px"
+        onkeydown="if(event.key==='Enter'){addNoteKeyword();event.preventDefault();}">
+      <button class="btn-export" onclick="addNoteKeyword()">&#x2795; 追加</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-export" onclick="saveNoteKeywords()">&#x1F4BE; 言葉を保存</button>
+      <button class="btn-export" onclick="resetNoteKeywords()" style="background:#f5f5f5;color:#555">&#x21BA; 初期値に戻す</button>
+      <span id="noteSavedMsg" style="display:none;font-size:13px;color:var(--sage);font-weight:700">&#x2705; 保存しました</span>
+    </div>
+  </div>
 </div>
 <script>
 // ── 品種マスター ──────────────────────────────────────────────────────
@@ -820,6 +841,18 @@ var GAICHI_KEYWORDS = GAICHI_KEYWORDS_DEFAULT.slice();
 })();
 // 備考欄に入れるが等級を外にしないキーワード（音声入力専用・内部用）
 var NOTE_ONLY_KEYWORDS = ['短い','みじかい','傷','きず'];
+// 備考マスタ（花の品質・注文内容など。等級は外にしない。設定タブで編集・localStorageに保存）
+// ※漢数字を含む語（一番花など）はkanjiToNum前に抽出するので登録可
+var NOTE_KEYWORDS_DEFAULT = [
+  // ── 品質に関する言葉 ──
+  'つぼみ','蕾','咲き始め','五分咲き','七分咲き','八分咲き','満開','開きぎみ','開花','日持ち','ボリューム','大輪','中輪','小輪','良品','上物','秀品','一番花','二番花',
+  // ── 注文内容に関する言葉 ──
+  '注文品','特注','指定','予約','相対','あいたい','見本','サンプル','至急'
+];
+var NOTE_KEYWORDS = NOTE_KEYWORDS_DEFAULT.slice();
+(function(){
+  try{var s=localStorage.getItem('noteKeywords');if(s){var arr=JSON.parse(s);if(Array.isArray(arr))NOTE_KEYWORDS=arr;}}catch(e){}
+})();
 var DEFAULT_SIZE = {'トルコキキョウ':'80','ひまわり':'80','ヒマワリ':'80'};
 var DEFAULT_RINGS = {'トルコキキョウ':'3F↑'};
 var DEFAULT_COUNT = {};
@@ -1055,7 +1088,28 @@ function _splitItemTexts(text){
   // （「数を言った後に品種や備考を足す」操作を品種欄混入なしで受け止める）
   var tail=t.slice(start).trim();
   if(tail&&parts.length>0)parts[parts.length-1]+=' '+tail;
+  // 「箱」の直後・次の品名より前に言われた備考語は、直前の品目の備考に付け替える
+  // 例: "バラ 10本 2箱 特注 菊 5本 1箱" → 特注はバラの備考
+  parts=_reassignLeadingNotes(parts);
   return parts.length>1?parts:[text];
+}
+// 各パートの先頭にある備考語（次の品名が出る前）を直前のパートへ移動する
+function _reassignLeadingNotes(parts){
+  var noteSet={};
+  GAICHI_KEYWORDS.forEach(function(k){if(k)noteSet[k]=1;});
+  NOTE_KEYWORDS.forEach(function(k){if(k)noteSet[k]=1;});
+  for(var i=1;i<parts.length;i++){
+    var toks=parts[i].split(/\s+/),moved=[];
+    while(toks.length){
+      var w=toks[0],isFlower=false;
+      for(var fi=0;fi<FLOWER_NAME_MAP.length;fi++){if(w.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0){isFlower=true;break;}}
+      if(isFlower)break;          // 次の品名が出たら停止
+      if(noteSet[w]){moved.push(w);toks.shift();}
+      else break;                 // 備考語以外（色・数など）が来たら停止
+    }
+    if(moved.length){parts[i-1]+=' '+moved.join(' ');parts[i]=toks.join(' ').trim();}
+  }
+  return parts;
 }
 
 // ── Speech Recognition (rebuilt) ─────────────────────────────────────
@@ -1078,7 +1132,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-2320';
+var APP_VERSION='20260529-2351';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1554,30 +1608,42 @@ function quickVoice(){
 
 // ── パース ────────────────────────────────────────────────────────────
 function parseAndAddItem(text){
-  var t=kanjiToNum(text).replace(/[・、,，「」]/g,' ').replace(/\s+/g,' ').trim();
   var gradeMap={'秀':'秀','優':'優','良':'良','Ａ':'A','ａ':'A','A':'A','Ｂ':'B','ｂ':'B','B':'B'};
-  var note='',gradeForced=false;
-  for(var ki=0;ki<GAICHI_KEYWORDS.length;ki++){
-    if(t.indexOf(GAICHI_KEYWORDS[ki])>=0){
-      note=GAICHI_KEYWORDS[ki];
+  // 備考になる言葉は、項目をどの順番で言っても拾えるように
+  // kanjiToNum（漢数字→数字）の前に、原文から先に抜き出す。
+  var raw=String(text).replace(/[・、,，「」]/g,' ').replace(/\s+/g,' ').trim();
+  var noteParts=[],gradeForced=false;
+  // ① 外等級キーワード（複数可・順不同）— 長い語から優先して照合
+  var _gk=GAICHI_KEYWORDS.slice().sort(function(a,b){return b.length-a.length;});
+  for(var ki=0;ki<_gk.length;ki++){
+    if(_gk[ki]&&raw.indexOf(_gk[ki])>=0){
+      if(noteParts.indexOf(_gk[ki])<0)noteParts.push(_gk[ki]);
       // NOTE_ONLY_KEYWORDS は備考に入れるだけで等級は外にしない
-      var noteOnly=NOTE_ONLY_KEYWORDS.indexOf(GAICHI_KEYWORDS[ki])>=0;
-      gradeForced=!noteOnly;
-      t=t.replace(GAICHI_KEYWORDS[ki],' ').replace(/\s+/,' ').trim();
-      break;
+      if(NOTE_ONLY_KEYWORDS.indexOf(_gk[ki])<0)gradeForced=true;
+      raw=raw.split(_gk[ki]).join(' ').replace(/\s+/g,' ').trim();
     }
   }
-  // 注文〇〇（市場名）の検出 — 備考に追加し振り分け固定の根拠とする
+  // ② 備考マスタ（品質・注文内容／等級は外にしない・複数可・順不同）
+  var _nk=NOTE_KEYWORDS.slice().sort(function(a,b){return b.length-a.length;});
+  for(var ni=0;ni<_nk.length;ni++){
+    if(_nk[ni]&&raw.indexOf(_nk[ni])>=0){
+      if(noteParts.indexOf(_nk[ni])<0)noteParts.push(_nk[ni]);
+      raw=raw.split(_nk[ni]).join(' ').replace(/\s+/g,' ').trim();
+    }
+  }
+  var t=kanjiToNum(raw).replace(/[・、,，「」]/g,' ').replace(/\s+/g,' ').trim();
+  // ③ 注文〇〇（市場名）の検出 — 備考に追加し振り分け固定の根拠とする
   var _mktShorts=MARKETS.map(function(m){return m.replace('花市場','');});
   for(var _oi=0;_oi<_mktShorts.length;_oi++){
     var _ore=new RegExp('注文\\s*'+_mktShorts[_oi]);
     if(_ore.test(t)){
       var _on='注文'+_mktShorts[_oi];
-      note=note?note+'・'+_on:_on;
+      if(noteParts.indexOf(_on)<0)noteParts.push(_on);
       t=t.replace(_ore,' ').replace(/\s+/,' ').trim();
       break;
     }
   }
+  var note=noteParts.join('・');
   var grade='';
   if(!gradeForced){var gm=t.match(/(?:等級|級)?([秀優良]|[AａＡaBbＢｂ])\s*(?:品|等|級)?/);if(gm){grade=gradeMap[gm[1]]||gm[1];t=t.replace(gm[0],' ').replace(/\s+/,' ').trim();}}
   var count='';var cm=t.match(/(\d+)\s*(本|束)/);if(cm){count=cm[1]+cm[2];t=t.replace(cm[0],' ').replace(/\s+/,' ').trim();}
@@ -3146,6 +3212,58 @@ function saveGaichiKeywords(){
   setStatus('外等級キーワードを保存しました','ok');
 }
 
+// ── 備考マスタ UI ────────────────────────────────────────────────
+function buildNoteKeywordsUI(){
+  var container=document.getElementById('noteKeywordsContainer');
+  if(!container)return;
+  container.innerHTML='';
+  if(NOTE_KEYWORDS.length===0){
+    var empty=document.createElement('span');
+    empty.style.cssText='font-size:12px;color:#aaa;padding:4px';
+    empty.textContent='（言葉なし）';
+    container.appendChild(empty);
+    return;
+  }
+  NOTE_KEYWORDS.forEach(function(kw,i){
+    var chip=document.createElement('span');
+    chip.style.cssText='display:inline-flex;align-items:center;gap:3px;background:#E8F0FE;border:1px solid #90B4F0;border-radius:14px;padding:4px 10px;font-size:13px;margin:2px';
+    chip.appendChild(document.createTextNode(kw));
+    var btn=document.createElement('button');
+    btn.textContent='×';
+    btn.setAttribute('onclick','removeNoteKeyword('+i+')');
+    btn.style.cssText='border:none;background:none;cursor:pointer;color:#3a5a9a;font-size:15px;line-height:1;padding:0 0 0 4px;font-weight:bold';
+    chip.appendChild(btn);
+    container.appendChild(chip);
+  });
+}
+function addNoteKeyword(){
+  var inp=document.getElementById('noteKeywordInput');
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  if(NOTE_KEYWORDS.indexOf(kw)<0){
+    NOTE_KEYWORDS.push(kw);
+    buildNoteKeywordsUI();
+  }
+  inp.value='';
+  inp.focus();
+}
+function removeNoteKeyword(i){
+  NOTE_KEYWORDS.splice(i,1);
+  buildNoteKeywordsUI();
+}
+function saveNoteKeywords(){
+  localStorage.setItem('noteKeywords',JSON.stringify(NOTE_KEYWORDS));
+  var msg=document.getElementById('noteSavedMsg');
+  if(msg){msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2500);}
+  setStatus('備考マスタを保存しました','ok');
+}
+function resetNoteKeywords(){
+  NOTE_KEYWORDS=NOTE_KEYWORDS_DEFAULT.slice();
+  buildNoteKeywordsUI();
+  setStatus('備考マスタを初期値に戻しました（保存で確定）','ok');
+}
+
 // ── 送信パネル表示 ──────────────────────────────────────────────
 function buildMarketCSV(market,mi,items,date,producer){
   var pinfo=loadProducerInfo();
@@ -4273,6 +4391,7 @@ buildSettingsTab=function(){
   if(cs&&_gistId){cs.textContent='✓ Gist設定済み';cs.style.color='#7a9e82';}
   buildFlowerDefaultsUI();
   buildGaichiKeywordsUI();
+  buildNoteKeywordsUI();
 };
 </script>
 <!-- まとめ箱設定モーダル -->
