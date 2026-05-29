@@ -1053,7 +1053,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260529-1720';
+var APP_VERSION='20260529-1721';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1948,7 +1948,8 @@ function _remPoolHtml(mi,items){
     var rem=_getRemaining(mi,it.id);
     var total=_getLogicalQty(mi,it.id);
     var ok=rem===0;
-    var label=it.name.length>7?it.name.slice(0,7)+'…':it.name;
+    var disp=it.variety||it.name;
+    var label=disp.length>8?disp.slice(0,8)+'…':disp;
     return '<span id="mrem_'+it.id+'" style="display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;'+
       'background:'+(ok?'#e8f5e8':'#ffe8e0')+';border:1px solid '+(ok?'#90c490':'#e09070')+';color:'+(ok?'#2a6e2a':'#8b4535')+'">'+
       esc(label)+' <span id="mremN_'+it.id+'">'+rem+'</span>/'+total+'箱'+(ok?' ✓':'')+'</span>';
@@ -1965,7 +1966,8 @@ function _makeBoxCard(mi,bi,items){
     '</div>';
   var tags=items.map(function(it){
     var qty=box.items[it.id]||0;
-    var label=it.name.length>6?it.name.slice(0,6)+'…':it.name;
+    var disp=it.variety||it.name;
+    var label=disp.length>8?disp.slice(0,8)+'…':disp;
     return '<span id="btag_'+bi+'_'+it.id+'" style="display:inline-flex;align-items:center;gap:2px;margin:3px;padding:3px 5px 3px 8px;background:#f5ede8;border:1px solid #d4b0a0;border-radius:20px">'+
       '<span style="font-size:12px;font-weight:600;color:#5a3e35;margin-right:2px">'+esc(label)+'</span>'+
       '<span id="bqty_'+bi+'_'+it.id+'" style="font-size:13px;font-weight:700;color:#b87888;min-width:18px;text-align:center">'+qty+'</span>'+
