@@ -261,8 +261,9 @@
        等級なし→<strong>A</strong> / 曲がり・細い等→<strong>外</strong></p>
     <div id="lastNameHint" style="font-size:12px;color:#8b6458;margin-top:5px;font-weight:700;min-height:16px;"></div>
     <button class="big-mic" id="bigMic" onclick="quickVoice()">&#x1F3A4;</button>
-    <div id="contLabel" class="mic-hint">&#x1F3A4; 連続入力スタート（押すと止まるまで聞き続けます）</div>
-    <div style="margin-top:8px;font-size:12px;color:#555">&#x23F1;&#xFE0F; 言葉の間（ま）の待ち時間：
+    <div id="contLabel" class="mic-hint">&#x1F3A4; ボタンを押して1品目を話す</div>
+    <div style="margin-top:6px;font-size:12px;color:#777">1品目ずつ「話す→自動で確定→また押す」の順で入力します</div>
+    <div style="margin-top:8px;font-size:12px;color:#555;display:none">&#x23F1;&#xFE0F; 言葉の間（ま）の待ち時間：
       <select id="parseDelaySel" onchange="setParseDelay(this.value)" style="font-size:13px;padding:4px 6px;flex:none;width:auto;display:inline-block">
         <option value="600">最速（0.6秒）</option>
         <option value="1200">標準（1.2秒）</option>
@@ -903,6 +904,38 @@ var FLOWER_NAME_MAP = [
   {pattern:'アスター',canonical:'アスター'},{pattern:'あすたー',canonical:'アスター'},{pattern:'エゾギク',canonical:'アスター'},{pattern:'えぞぎく',canonical:'アスター'},
   {pattern:'カラー',canonical:'カラー'},{pattern:'からー',canonical:'カラー'},{pattern:'カルラ',canonical:'カラー'}
 ];
+// 花名を読み（カナ）に正規化した一覧。あいまい照合（聞き間違い補正）で使用。
+// normKana/levenDist が後方定義のため、初回呼び出し時に遅延構築してキャッシュする。
+var _flowerNormMapCache=null;
+function _getFlowerNormMap(){
+  if(_flowerNormMapCache)return _flowerNormMapCache;
+  var seen={},arr=[];
+  for(var i=0;i<FLOWER_NAME_MAP.length;i++){
+    var c=FLOWER_NAME_MAP[i].canonical;
+    var ns=[normKana(FLOWER_NAME_MAP[i].pattern),normKana(c)];
+    for(var k=0;k<ns.length;k++){
+      var n=ns[k];if(!n||n.length<2)continue;
+      var key=n+'|'+c;if(seen[key])continue;seen[key]=1;arr.push({norm:n,canonical:c});
+    }
+  }
+  _flowerNormMapCache=arr;return arr;
+}
+// 1トークンを花名マスタへ読みベースで近似照合し、canonical名を返す（なければ''）。
+// 例：「トムコキキョウ」→「トルコキキョウ」、「がーびら」→「ガーベラ」
+function snapFlowerName(token){
+  var tn=normKana(token);
+  if(tn.length<2)return '';
+  var FNM=_getFlowerNormMap();
+  var best='',bestD=999;
+  for(var i=0;i<FNM.length;i++){
+    var fn=FNM[i].norm;if(fn.length<2)continue;
+    var d=levenDist(tn,fn);
+    if(tn.indexOf(fn)>=0||fn.indexOf(tn)>=0)d=Math.min(d,1); // 一方が他方を含む
+    var th=Math.max(1,Math.round(Math.max(tn.length,fn.length)*0.34)); // 語長の約34%まで許容
+    if(d<=th&&d<bestD){bestD=d;best=FNM[i].canonical;}
+  }
+  return best;
+}
 
 // ── 音声候補スコアリング & 誤認識補正 ─────────────────────────────────
 var SPEECH_CORRECTIONS=[
@@ -1182,10 +1215,12 @@ window._voiceTest={
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 // シンプル状態管理（continuous=false 方式でモバイル互換）
-var _srOn=false;           // 連続モードON/OFF
+var _srOn=false;           // 連続モードON/OFF（旧方式・現在は未使用）
+var _singleShot=false;     // 単発モード（1タップ1品目）ON/OFF
 var _srRec=null;           // 現在のSRインスタンス
 var _srGeneration=0;       // 世代番号（古いコールバック破棄用）
 var _srRestartTimer=null;  // 再起動タイマー
+var _wakeLock=null;        // 画面スリープ防止ロック
 var pendingCb=null,currentMicEl=null;
 var permissionGranted=false; // diagnoseMic・エラーUI用
 // テキスト処理（変更なし）
@@ -1198,7 +1233,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260530-2116';
+var APP_VERSION='20260530-2137';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1378,16 +1413,29 @@ function _srStart(){
       _srLastFinal=text;_srLastFinalTime=_tnow;
 
       if(pendingCb){
-        // コールバックモード（単発入力）
+        // コールバックモード（個別欄のマイク）
         var cb=pendingCb;pendingCb=null;_srOn=false;
         stopRecUI();cb(text);
+      } else if(_singleShot){
+        // 単発モード：1発話＝1品目（複数品目を一息で言った場合も箱境界で分割）
+        _singleShot=false;
+        var _ssParts=_splitItemTexts(text);
+        var _added=0;
+        for(var _sp=0;_sp<_ssParts.length;_sp++){var _spp=_ssParts[_sp].trim();if(_spp){parseAndAddItem(_spp);_added++;}}
+        updateLastNameHint();
+        if(_srRec){try{_srRec.stop();}catch(ex){}}
+        stopRecUI();
+        setStatus('「'+text+'」を追加しました ✓　次の品目は🎤ボタンを押して話してください','ok');
       } else if(_srOn){
         _ingestFinalText(text);
       }
     }
     if(interim){
-      var _pre=_pendingPartialItem?'【'+(_pendingPartialItem.length>14?_pendingPartialItem.slice(0,14)+'…':_pendingPartialItem)+'】 ':(pendingText?pendingText+' ':'');
-      setStatus('認識中…「'+_pre+interim+'」','recording');
+      if(_singleShot){setStatus('🎤 聞き取り中…「'+interim+'」','recording');}
+      else{
+        var _pre=_pendingPartialItem?'【'+(_pendingPartialItem.length>14?_pendingPartialItem.slice(0,14)+'…':_pendingPartialItem)+'】 ':(pendingText?pendingText+' ':'');
+        setStatus('認識中…「'+_pre+interim+'」','recording');
+      }
     } else if(pendingText&&_srOn){setStatus('認識中…「'+pendingText+'」','recording');}
   };
 
@@ -1431,9 +1479,10 @@ function _srStart(){
     if(_srGeneration!==myGen)return;
     _srRec=null;
     if(_srPaused)return; // バックグラウンド中は再起動しない
-    if(_srOn||pendingCb){
-      // 連続モード：自動再起動。再起動の隙間（マイクOFF）は短いほど発話の取りこぼしが減る。
-      // network/service-not-allowed エラー後だけは長めの遅延で再試行する。
+    if(_srOn||pendingCb||_singleShot){
+      // 自動再起動。単発モードでは「まだ品目を言っていない（_singleShot=true のまま）」間だけ
+      // 聞き取りを継続する。1品目を取り込んだ時点で _singleShot=false になり再起動しない＝
+      // 発話中にマイクが切れて取りこぼす隙間が原理的に発生しない。
       var _restartDelay=(isMobile?250:120);
       if(_srLastError==='network'||_srLastError==='service-not-allowed'||_srLastError==='audio-capture'){
         _restartDelay=3000;
@@ -1441,7 +1490,7 @@ function _srStart(){
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
         _srRestartTimer=null;
-        if(!_srPaused&&(_srOn||pendingCb))_srStart();
+        if(!_srPaused&&(_srOn||pendingCb||_singleShot))_srStart();
       },_restartDelay);
     } else {
       stopRecUI();
@@ -1453,11 +1502,11 @@ function _srStart(){
   }catch(e){
     console.warn('SR start() failed:',e);
     _srRec=null;
-    if(_srOn||pendingCb){
+    if(_srOn||pendingCb||_singleShot){
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
         _srRestartTimer=null;
-        if(_srOn||pendingCb)_srStart();
+        if(_srOn||pendingCb||_singleShot)_srStart();
       },isMobile?1000:500);
     }
   }
@@ -1469,9 +1518,12 @@ document.addEventListener('visibilitychange',function(){
     _srPaused=true;
     clearTimeout(_srRestartTimer);_srRestartTimer=null;
     if(_srRec){try{_srRec.abort();}catch(ex){}}_srRec=null;
+    if(_singleShot){_singleShot=false;stopRecUI();} // 単発待機中なら解除
+    _releaseWakeLock();
   } else {
-    // フォアグラウンドへ：SR再開（800ms 待機後）
+    // フォアグラウンドへ：SR再開（800ms 待機後）＋ スリープ防止を再取得
     _srPaused=false;
+    _acquireWakeLock();
     if(_srOn||pendingCb){
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
@@ -1481,6 +1533,25 @@ document.addEventListener('visibilitychange',function(){
     }
   }
 },false);
+
+// ── 画面スリープ防止（Wake Lock）───────────────────────────────────────
+// 利用者要望：アプリ起動中は画面を消さない。対応ブラウザでのみ動作（非対応は無視）。
+function _acquireWakeLock(){
+  try{
+    if('wakeLock'in navigator&&navigator.wakeLock&&document.visibilityState==='visible'&&!_wakeLock){
+      navigator.wakeLock.request('screen').then(function(wl){
+        _wakeLock=wl;
+        _wakeLock.addEventListener('release',function(){_wakeLock=null;});
+      }).catch(function(){/* ユーザー操作前など。次のタップで再取得 */});
+    }
+  }catch(e){}
+}
+function _releaseWakeLock(){
+  try{if(_wakeLock){_wakeLock.release();_wakeLock=null;}}catch(e){}
+}
+// 起動時とユーザー操作時に取得（ブラウザによっては操作後でないと許可されないため）
+_acquireWakeLock();
+window.addEventListener('click',function(){_acquireWakeLock();},false);
 
 if(!SR){document.getElementById('noSupport').style.display='block';}
 (function(){var sel=document.getElementById('parseDelaySel');if(sel){sel.value=String(PARSE_DELAY);if(!sel.value)sel.value='2800';}})();
@@ -1581,11 +1652,11 @@ function showMicHelp(){
 }
 function stopRecUI(){
   if(currentMicEl){currentMicEl.classList.remove('recording');currentMicEl.textContent='🎤';currentMicEl=null;}
-  if(!_srOn&&!pendingCb){
+  if(!_srOn&&!pendingCb&&!_singleShot){
     var bm=document.getElementById('bigMic');
     if(bm){bm.classList.remove('recording');bm.textContent='🎤';}
     var lbl=document.getElementById('contLabel');
-    if(lbl)lbl.textContent='🎤 連続入力スタート（押すと止まるまで聞き続けます）';
+    if(lbl)lbl.textContent='🎤 ボタンを押して1品目を話す';
   }
 }
 function stopRecAll(){
@@ -1624,19 +1695,29 @@ function updateLastNameHint(){
   var h=document.getElementById('lastNameHint');
   if(h)h.textContent=lastUsedName?('現在の品目：'+lastUsedName+'（品目名は省略可）'):'';
 }
+// 単発入力（1タップ1品目）：ボタンを押す→1品目だけ話す→自動で確定→ボタンは待機に戻る。
+// マイクの再起動ループは「まだ話していない待機中」だけ。発話を取り込むと止まるので取りこぼさない。
 function quickVoice(){
   if(!SR){setStatus('音声入力はこのブラウザで使えません','error');return;}
-  if(_srOn){
-    // 停止
-    stopRecAll();
+  if(_singleShot){
+    // 聞き取り中にもう一度押したら中止
+    _singleShot=false;
+    clearTimeout(_srRestartTimer);_srRestartTimer=null;
+    if(_srRec){try{_srRec.abort();}catch(e){}}_srRec=null;
+    stopRecUI();
+    setStatus('聞き取りを止めました。🎤ボタンを押すと再開します','');
     return;
   }
+  // 旧連続モードが動いていたら止める
+  _srOn=false;pendingCb=null;
   // 開始
-  _srOn=true;pendingCb=null;
+  _acquireWakeLock();
+  _srLastFinal='';_srLastFinalTime=0; // 直前確定との重複判定をリセット
+  _singleShot=true;
   var btn=document.getElementById('bigMic');
   if(btn){btn.classList.add('recording');btn.textContent='⏹';}
-  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ タップして停止';
-  setStatus('連続入力中 — 話しかけてください（品目・品種・本数・箱数）','recording');
+  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ 聞き取り中…（タップで中止）';
+  setStatus('🎤 1品目を話してください（品目・品種・本数・箱数）','recording');
   _srStart();
 }
 
@@ -1688,8 +1769,18 @@ function parseAndAddItem(text){
     if(t.indexOf(FLOWER_NAME_MAP[fi].pattern)>=0){name=FLOWER_NAME_MAP[fi].canonical;variety=t.replace(FLOWER_NAME_MAP[fi].pattern,'').replace(/^\s+/,'').trim();matched=true;break;}
   }
   if(!matched){
-    if(lastUsedName){name=lastUsedName;variety=t.trim();}
-    else{var words=t.split(/\s+/).filter(function(w){return w.length>0;});name=words[0]||'';variety=words.slice(1).join(' ');}
+    // 完全一致しない → 読み（カナ）ベースで各トークンを花名マスタへ近似照合（聞き間違い補正）
+    var _ftoks=t.split(/\s+/).filter(function(w){return w.length>0;});
+    var _fcanon='',_fidx=-1;
+    for(var _fti=0;_fti<_ftoks.length;_fti++){
+      if(/\d/.test(_ftoks[_fti]))continue; // 数字トークンは花名ではない
+      var _snap=snapFlowerName(_ftoks[_fti]);
+      if(_snap){_fcanon=_snap;_fidx=_fti;break;}
+    }
+    if(_fcanon){
+      name=_fcanon;_ftoks.splice(_fidx,1);variety=_ftoks.join(' ').trim();matched=true;
+    } else if(lastUsedName){name=lastUsedName;variety=t.trim();}
+    else{name=_ftoks[0]||'';variety=_ftoks.slice(1).join(' ');}
   }
   if(name){lastUsedName=name;updateLastNameHint();}
   // 品目名だけを言った場合は項目を作らず「現在の品目」として記憶（以降の品種・本数・箱数に引き継ぐ）
