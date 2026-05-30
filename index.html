@@ -1133,31 +1133,10 @@ function _ingestFinalText(text){
   } else {
     pendingText+=(pendingText?' ':'')+text;
   }
-  // 後ろに別の箱がある＝確定済みの品目を即追加（最後の箱の品目は保留のまま）
-  _flushSettledItems();
-  // 残りは無音 PARSE_DELAY 後に確定
+  // すべての確定は無音 PARSE_DELAY（待ち時間）後に行う。
+  // 待ち時間が来るまでに次の言葉が来たらタイマーをリセットして話し続けられる。
   clearTimeout(parseTimer);
   parseTimer=setTimeout(_finalizePending,PARSE_DELAY);
-}
-// pendingText 内で「後ろにさらに箱がある」品目を切り出して即追加する。
-// 最後の箱の品目とそれ以降の付帯語は pendingText に残す（品種・備考の追加待ち）。
-function _flushSettledItems(){
-  var t=kanjiToNum(pendingText);
-  var boxRe=/\d+\s*箱/g,m,bounds=[];
-  while((m=boxRe.exec(t))!==null){bounds.push(m.index+m[0].length);}
-  if(bounds.length<=1)return; // 箱が1つ以下 → まだ確定しない
-  // 最後の箱の品目は保留。最後から2番目の箱の直後で切る。
-  var cut=bounds[bounds.length-2];
-  var settled=[],start=0;
-  for(var i=0;i<bounds.length-1;i++){var p=t.slice(start,bounds[i]).trim();if(p)settled.push(p);start=bounds[i];}
-  var rest=t.slice(cut).trim();
-  // rest（＝最後の箱の品目）の先頭にある備考語は、直前の確定品目に引き取らせる
-  var merged=_reassignLeadingNotes(settled.concat([rest]));
-  rest=merged.pop();
-  for(var j=0;j<merged.length;j++){if(merged[j])parseAndAddItem(merged[j]);}
-  updateLastNameHint();
-  pendingText=rest;
-  if(merged.length)setStatus('「'+merged[merged.length-1]+'」を追加 ✓ 続けてどうぞ','ok');
 }
 // 無音確定：保留中テキストを確定する
 function _finalizePending(){
@@ -1219,7 +1198,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260530-2105';
+var APP_VERSION='20260530-2116';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1983,7 +1962,7 @@ function startFieldMic(fieldId){
   var btns=document.querySelectorAll('.tab-btn');for(var j=0;j<btns.length;j++)btns[j].classList.remove('active');
   document.getElementById(id).classList.add('active');
   var idx=['step1','step2','step3','step4','step6','step5'].indexOf(id); if(idx>=0)btns[idx].classList.add('active');
-  if(id==='step2'){var items=getItems().filter(function(it){return it.name;});var cids=items.map(function(i){return i.id;}).join(',');if(items.length&&cids!==lastBuiltItemIds)buildDistTable(items);buildDistPreview();}
+  if(id==='step2'){var items=getItems().filter(function(it){return it.name;});var cids=_distSig(items);if(items.length&&cids!==lastBuiltItemIds)buildDistTable(items);buildDistPreview();}
   else if(id==='step3'){buildMarketSummaries();}
   else if(id==='step4'){buildStatView();}
   else if(id==='step5'){buildSettingsTab();}
@@ -2336,8 +2315,14 @@ function reApplyDist(){
   setStatus('設定にもとづいて再振り分けしました','ok');
 }
 
+// 振分け表の再構築要否を判定する署名。
+// id だけでなく備考（注文〇〇）・箱数・本数も含めるので、
+// 備考を編集しただけでも振分けが組み直される。
+function _distSig(items){
+  return items.map(function(i){return i.id+'|'+(i.note||'')+'|'+(i.boxes||'')+'|'+(i.count||'');}).join(',');
+}
 function buildDistTable(items){
-  lastBuiltItemIds=items.map(function(i){return i.id;}).join(',');
+  lastBuiltItemIds=_distSig(items);
   var thead=document.getElementById('distHead');
   if(thead){var mktThs=MARKETS.map(function(m,mi){return'<th>'+m.replace('花市場','<br>花市場')+'<br><button class="matome-btn" id="matomeBtn_'+mi+'" onclick="showMatomePanel('+mi+')">まとめ&#x25BC;</button></th>';}).join('');thead.innerHTML='<tr><th class="item-col">品目・品種</th><th>等級</th><th>規格</th><th>合計</th>'+mktThs+'<th>残数</th></tr>';}
   var tbody=document.getElementById('distBody'); tbody.innerHTML='';
