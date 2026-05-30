@@ -1112,6 +1112,93 @@ function _reassignLeadingNotes(parts){
   return parts;
 }
 
+// ── 連続入力エンジン（onresult から分離してテスト可能に） ─────────────────
+// 設計方針：
+//  ・聞き取った確定テキストを pendingText に蓄積する。
+//  ・「N箱」が2つ以上たまったら、最後の箱の品目より前は確実に完了しているので
+//    その場で即追加する（＝話し続けても1品目ずつ画面に出る＝連続入力の手応え）。
+//  ・最後の箱の品目＋それ以降（品種・備考などの付帯）は保留し、
+//    無音が PARSE_DELAY 続いたときに確定する（数の後に品種・備考を足せる）。
+function _ingestFinalText(text){
+  if(_pendingPartialItem){
+    // 保留中（未完成・箱なし）アイテムがある場合
+    var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
+    if(_nf&&_pf&&_nf!==_pf){
+      // 異なる品目を言い始めた → 保留分を先に確定
+      _addItemsFromText(_pendingPartialItem);
+      _pendingPartialItem='';pendingText=text;
+    } else {
+      pendingText=(_pendingPartialItem+' '+text).trim();_pendingPartialItem='';
+    }
+  } else {
+    pendingText+=(pendingText?' ':'')+text;
+  }
+  // 後ろに別の箱がある＝確定済みの品目を即追加（最後の箱の品目は保留のまま）
+  _flushSettledItems();
+  // 残りは無音 PARSE_DELAY 後に確定
+  clearTimeout(parseTimer);
+  parseTimer=setTimeout(_finalizePending,PARSE_DELAY);
+}
+// pendingText 内で「後ろにさらに箱がある」品目を切り出して即追加する。
+// 最後の箱の品目とそれ以降の付帯語は pendingText に残す（品種・備考の追加待ち）。
+function _flushSettledItems(){
+  var t=kanjiToNum(pendingText);
+  var boxRe=/\d+\s*箱/g,m,bounds=[];
+  while((m=boxRe.exec(t))!==null){bounds.push(m.index+m[0].length);}
+  if(bounds.length<=1)return; // 箱が1つ以下 → まだ確定しない
+  // 最後の箱の品目は保留。最後から2番目の箱の直後で切る。
+  var cut=bounds[bounds.length-2];
+  var settled=[],start=0;
+  for(var i=0;i<bounds.length-1;i++){var p=t.slice(start,bounds[i]).trim();if(p)settled.push(p);start=bounds[i];}
+  var rest=t.slice(cut).trim();
+  // rest（＝最後の箱の品目）の先頭にある備考語は、直前の確定品目に引き取らせる
+  var merged=_reassignLeadingNotes(settled.concat([rest]));
+  rest=merged.pop();
+  for(var j=0;j<merged.length;j++){if(merged[j])parseAndAddItem(merged[j]);}
+  updateLastNameHint();
+  pendingText=rest;
+  if(merged.length)setStatus('「'+merged[merged.length-1]+'」を追加 ✓ 続けてどうぞ','ok');
+}
+// 無音確定：保留中テキストを確定する
+function _finalizePending(){
+  parseTimer=null;
+  var combined=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
+  if(!combined)return;
+  if(_isItemComplete(combined)){
+    _addItemsFromText(combined);
+    setStatus('追加しました ✓ 次を話してください','ok');
+  } else {
+    _pendingPartialItem=combined;
+    var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
+    setStatus('⏳ 続きをどうぞ（本数・箱数） ▶「'+_hint+'」','recording');
+  }
+}
+// テキストブロックを箱境界で分割して各品目を追加する
+function _addItemsFromText(textBlock){
+  var _pts=_splitItemTexts(textBlock);
+  for(var i=0;i<_pts.length;i++){var p=_pts[i].trim();if(p)parseAndAddItem(p);}
+  updateLastNameHint();
+}
+// テスト用フック：実際の連続入力エンジンをブラウザから検証するため
+window._voiceTest={
+  ingest:function(t){_srOn=true;_ingestFinalText(t);},
+  finalize:function(){_finalizePending();},
+  reset:function(){
+    pendingText='';_pendingPartialItem='';lastUsedName='';
+    clearTimeout(parseTimer);parseTimer=null;
+    var c=document.getElementById('itemsContainer');if(c)c.innerHTML='';
+    itemCount=0;
+  },
+  items:function(){
+    return Array.prototype.map.call(document.querySelectorAll('.item-card'),function(card){
+      var id=card.id.replace('item-','');
+      var g=function(p){var el=document.getElementById(p+id);return el?el.value:'';};
+      return {name:g('n_'),variety:g('v_'),count:g('c_'),boxes:g('b_'),size:g('s_'),note:g('r_'),grade:g('g_')};
+    });
+  },
+  state:function(){return {pendingText:pendingText,partial:_pendingPartialItem,lastUsedName:lastUsedName};}
+};
+
 // ── Speech Recognition (rebuilt) ─────────────────────────────────────
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -1132,7 +1219,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260530-0910';
+var APP_VERSION='20260530-2105';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1302,10 +1389,11 @@ function _srStart(){
       }
       var text=applyCorrections(bestText).trim();
       if(!text)continue;
-      // SR再起動による重複除去（ウィンドウ内同一テキストはスキップ、ヒット時リフレッシュ）
+      // SR再起動直後のエンジン重複発火だけを除去する短いウィンドウ。
+      // 大きすぎると「同じ品目を続けて言う連続入力」が消えてしまうため 1500ms に固定。
+      // （人間が同じ品目をもう一度言うには最低でもこれ以上かかる）
       var _tnow=Date.now();
-      var _dedupWin=Math.max(5000,PARSE_DELAY+2500);
-      if(text===_srLastFinal&&_tnow-_srLastFinalTime<_dedupWin){
+      if(text===_srLastFinal&&_tnow-_srLastFinalTime<1500){
         _srLastFinalTime=_tnow;continue;
       }
       _srLastFinal=text;_srLastFinalTime=_tnow;
@@ -1315,40 +1403,7 @@ function _srStart(){
         var cb=pendingCb;pendingCb=null;_srOn=false;
         stopRecUI();cb(text);
       } else if(_srOn){
-        // 連続モード：すべて pendingText に蓄積し、無音が PARSE_DELAY 続いたときだけ確定する。
-        // 確定時に「箱」境界で分割するので、途中で即確定しない（設定した待ち時間を完全に尊重）。
-        if(_pendingPartialItem){
-          // 保留中（未完成・箱なし）アイテムがある場合
-          var _nf=_extractFlowerFromText(text),_pf=_extractFlowerFromText(_pendingPartialItem);
-          if(_nf&&_pf&&_nf!==_pf){
-            // 異なる品目を言い始めた → 保留分を先に確定（不完全でも欄ハイライトで補完を促す）
-            var _ppts=_splitItemTexts(_pendingPartialItem);
-            for(var _ppi=0;_ppi<_ppts.length;_ppi++){var _ppp=_ppts[_ppi].trim();if(_ppp){parseAndAddItem(_ppp);}}
-            updateLastNameHint();
-            _pendingPartialItem='';pendingText=text;
-          } else {
-            pendingText=(_pendingPartialItem+' '+text).trim();_pendingPartialItem='';
-          }
-        } else {
-          pendingText+=(pendingText?' ':'')+text;
-        }
-        clearTimeout(parseTimer);
-        parseTimer=setTimeout(function(){
-          parseTimer=null;
-          var combined=pendingText.trim().replace(/[。、！？]+$/,'');pendingText='';
-          if(!combined)return;
-          if(_isItemComplete(combined)){
-            // 蓄積テキストに複数品目があれば「箱」境界で分割して個別に追加
-            var _pts=_splitItemTexts(combined);
-            for(var _pti=0;_pti<_pts.length;_pti++){var _pp=_pts[_pti].trim();if(_pp){parseAndAddItem(_pp);}}
-            updateLastNameHint();
-            setStatus('「'+_pts[_pts.length-1]+'」を追加 — 次を話してください','ok');
-          } else {
-            _pendingPartialItem=combined;
-            var _hint=combined.length>20?combined.slice(0,20)+'…':combined;
-            setStatus('⏳ 続きをどうぞ（本数・箱数） ▶「'+_hint+'」','recording');
-          }
-        },PARSE_DELAY);
+        _ingestFinalText(text);
       }
     }
     if(interim){
@@ -1398,9 +1453,9 @@ function _srStart(){
     _srRec=null;
     if(_srPaused)return; // バックグラウンド中は再起動しない
     if(_srOn||pendingCb){
-      // 連続モード：自動再起動
-      // network/service-not-allowed エラー後は長めの遅延で再試行
-      var _restartDelay=(isMobile?600:300);
+      // 連続モード：自動再起動。再起動の隙間（マイクOFF）は短いほど発話の取りこぼしが減る。
+      // network/service-not-allowed エラー後だけは長めの遅延で再試行する。
+      var _restartDelay=(isMobile?250:120);
       if(_srLastError==='network'||_srLastError==='service-not-allowed'||_srLastError==='audio-capture'){
         _restartDelay=3000;
       }
