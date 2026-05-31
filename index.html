@@ -93,6 +93,10 @@
   .big-mic{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;font-size:28px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(184,120,136,0.45);transition:all 0.2s;touch-action:manipulation}
   .big-mic:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858)}
   .big-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);box-shadow:0 4px 16px rgba(212,80,80,0.5);animation:pulse 0.7s infinite}
+  /* 画面をスクロールしても付いてくる浮かぶマイク（品目入力画面で元のマイクが隠れたら表示） */
+  .fab-mic{position:fixed;right:18px;bottom:22px;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;border:none;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(184,120,136,0.55);z-index:900;touch-action:manipulation}
+  .fab-mic.show{display:inline-flex}
+  .fab-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);animation:pulse 0.7s infinite}
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
   .mic-hint{font-size:11px;color:var(--text-light);margin-top:7px}
   .field-row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
@@ -254,6 +258,7 @@
   <button class="tab-btn" onclick="showTab('step6')">&#x2464; 精算</button>
   <button class="tab-btn" onclick="showTab('step5')">&#x2465; 設定</button>
 </div>
+<button class="fab-mic" id="fabMic" onclick="quickVoice()" aria-label="音声入力">&#x1F3A4;</button>
 <div id="step1" class="tab-panel active">
   <div class="quick-voice">
     <p>例：<strong>「トルコキキョウ ボヤージュグリーン 30本 2箱」</strong><br>
@@ -1217,6 +1222,9 @@ var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 // シンプル状態管理（continuous=false 方式でモバイル互換）
 var _srOn=false;           // 連続モードON/OFF（旧方式・現在は未使用）
 var _singleShot=false;     // 単発モード（1タップ1品目）ON/OFF
+var _ssBuffer='';          // 単発モードで聞き取った文を一時ためる
+var _ssGraceTimer=null;    // 単発モードの「言い終わり待ち」タイマー
+var SS_GRACE=3000;         // 言い終わってから確定するまでの猶予（ミリ秒）
 var _srRec=null;           // 現在のSRインスタンス
 var _srGeneration=0;       // 世代番号（古いコールバック破棄用）
 var _srRestartTimer=null;  // 再起動タイマー
@@ -1233,7 +1241,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260530-2137';
+var APP_VERSION='20260531-1833';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1417,21 +1425,22 @@ function _srStart(){
         var cb=pendingCb;pendingCb=null;_srOn=false;
         stopRecUI();cb(text);
       } else if(_singleShot){
-        // 単発モード：1発話＝1品目（複数品目を一息で言った場合も箱境界で分割）
-        _singleShot=false;
-        var _ssParts=_splitItemTexts(text);
-        var _added=0;
-        for(var _sp=0;_sp<_ssParts.length;_sp++){var _spp=_ssParts[_sp].trim();if(_spp){parseAndAddItem(_spp);_added++;}}
-        updateLastNameHint();
-        if(_srRec){try{_srRec.stop();}catch(ex){}}
-        stopRecUI();
-        setStatus('「'+text+'」を追加しました ✓　次の品目は🎤ボタンを押して話してください','ok');
+        // 単発モード：言い終わってもすぐ確定せず、少し待つ（猶予 SS_GRACE）。
+        // 途中で息継ぎしても、続きを話せば同じ品目に追記される＝途中で切れない。
+        _ssBuffer=(_ssBuffer?_ssBuffer+' ':'')+text;
+        clearTimeout(_ssGraceTimer);
+        _ssGraceTimer=setTimeout(_commitSingleShot,SS_GRACE);
+        setStatus('🎤「'+_ssBuffer+'」（続けて話せます。少し待つと確定します）','recording');
       } else if(_srOn){
         _ingestFinalText(text);
       }
     }
     if(interim){
-      if(_singleShot){setStatus('🎤 聞き取り中…「'+interim+'」','recording');}
+      if(_singleShot){
+        // 話している間は確定を先送り（猶予を延長）。buffer が空のときは初回発話中なのでタイマー不要。
+        if(_ssBuffer){clearTimeout(_ssGraceTimer);_ssGraceTimer=setTimeout(_commitSingleShot,SS_GRACE);}
+        setStatus('🎤 聞き取り中…「'+(_ssBuffer?_ssBuffer+' ':'')+interim+'」','recording');
+      }
       else{
         var _pre=_pendingPartialItem?'【'+(_pendingPartialItem.length>14?_pendingPartialItem.slice(0,14)+'…':_pendingPartialItem)+'】 ':(pendingText?pendingText+' ':'');
         setStatus('認識中…「'+_pre+interim+'」','recording');
@@ -1518,7 +1527,7 @@ document.addEventListener('visibilitychange',function(){
     _srPaused=true;
     clearTimeout(_srRestartTimer);_srRestartTimer=null;
     if(_srRec){try{_srRec.abort();}catch(ex){}}_srRec=null;
-    if(_singleShot){_singleShot=false;stopRecUI();} // 単発待機中なら解除
+    if(_singleShot){_singleShot=false;clearTimeout(_ssGraceTimer);_ssGraceTimer=null;_ssBuffer='';stopRecUI();} // 単発待機中なら解除
     _releaseWakeLock();
   } else {
     // フォアグラウンドへ：SR再開（800ms 待機後）＋ スリープ防止を再取得
@@ -1655,10 +1664,25 @@ function stopRecUI(){
   if(!_srOn&&!pendingCb&&!_singleShot){
     var bm=document.getElementById('bigMic');
     if(bm){bm.classList.remove('recording');bm.textContent='🎤';}
+    var fab=document.getElementById('fabMic');
+    if(fab){fab.classList.remove('recording');fab.textContent='🎤';}
     var lbl=document.getElementById('contLabel');
     if(lbl)lbl.textContent='🎤 ボタンを押して1品目を話す';
   }
 }
+// 浮かぶマイクの表示制御：品目入力画面で、元のマイクが画面外のときだけ出す。
+function _updateFab(){
+  var fab=document.getElementById('fabMic');if(!fab)return;
+  var step1=document.getElementById('step1');
+  var step1Active=step1&&step1.classList.contains('active');
+  var bm=document.getElementById('bigMic');
+  var bmVisible=false;
+  if(bm){var r=bm.getBoundingClientRect();bmVisible=r.bottom>0&&r.top<(window.innerHeight||document.documentElement.clientHeight);}
+  fab.classList.toggle('show', !!step1Active && !bmVisible);
+}
+window.addEventListener('scroll',_updateFab,{passive:true});
+window.addEventListener('resize',_updateFab,{passive:true});
+window.addEventListener('load',_updateFab);
 function stopRecAll(){
   _srOn=false;pendingCb=null;
   clearTimeout(_srRestartTimer);_srRestartTimer=null;
@@ -1697,11 +1721,28 @@ function updateLastNameHint(){
 }
 // 単発入力（1タップ1品目）：ボタンを押す→1品目だけ話す→自動で確定→ボタンは待機に戻る。
 // マイクの再起動ループは「まだ話していない待機中」だけ。発話を取り込むと止まるので取りこぼさない。
+// 単発モードのためた文を確定する（猶予タイマー満了 or 手動確定で呼ばれる）。
+function _commitSingleShot(){
+  clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
+  var text=(_ssBuffer||'').trim();
+  _ssBuffer='';
+  _singleShot=false;
+  clearTimeout(_srRestartTimer);_srRestartTimer=null;
+  if(_srRec){try{_srRec.stop();}catch(ex){}_srRec=null;}
+  stopRecUI();
+  if(!text){setStatus('聞き取りを止めました。🎤ボタンを押すと再開します','');return;}
+  var _ssParts=_splitItemTexts(text);
+  for(var _sp=0;_sp<_ssParts.length;_sp++){var _spp=_ssParts[_sp].trim();if(_spp){parseAndAddItem(_spp);}}
+  updateLastNameHint();
+  setStatus('「'+text+'」を追加しました ✓　次の品目は🎤ボタンを押して話してください','ok');
+}
 function quickVoice(){
   if(!SR){setStatus('音声入力はこのブラウザで使えません','error');return;}
   if(_singleShot){
-    // 聞き取り中にもう一度押したら中止
+    // 聞き取り中にもう一度押したら：話した内容があればすぐ確定、なければ中止。
+    if((_ssBuffer||'').trim()){_commitSingleShot();return;}
     _singleShot=false;
+    clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
     clearTimeout(_srRestartTimer);_srRestartTimer=null;
     if(_srRec){try{_srRec.abort();}catch(e){}}_srRec=null;
     stopRecUI();
@@ -1713,10 +1754,13 @@ function quickVoice(){
   // 開始
   _acquireWakeLock();
   _srLastFinal='';_srLastFinalTime=0; // 直前確定との重複判定をリセット
+  _ssBuffer='';clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
   _singleShot=true;
   var btn=document.getElementById('bigMic');
   if(btn){btn.classList.add('recording');btn.textContent='⏹';}
-  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ 聞き取り中…（タップで中止）';
+  var fab=document.getElementById('fabMic');
+  if(fab){fab.classList.add('recording');fab.textContent='⏹';}
+  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ 聞き取り中…（話し終わったらタップで確定）';
   setStatus('🎤 1品目を話してください（品目・品種・本数・箱数）','recording');
   _srStart();
 }
@@ -1748,14 +1792,17 @@ function parseAndAddItem(text){
   }
   var t=kanjiToNum(raw).replace(/[・、,，「」]/g,' ').replace(/\s+/g,' ').trim();
   // ③ 注文〇〇（市場名）の検出 — 備考に追加し振り分け固定の根拠とする
-  var _mktShorts=MARKETS.map(function(m){return m.replace('花市場','');});
-  for(var _oi=0;_oi<_mktShorts.length;_oi++){
-    var _ore=new RegExp('注文\\s*'+_mktShorts[_oi]);
-    if(_ore.test(t)){
-      var _on='注文'+_mktShorts[_oi];
-      if(noteParts.indexOf(_on)<0)noteParts.push(_on);
-      t=t.replace(_ore,' ').replace(/\s+/,' ').trim();
-      break;
+  // 市場名をユーザーが自由に設定していても拾えるよう、短縮形すべてを試す。
+  for(var _oi=0;_oi<MARKETS.length&&!/注文/.test(noteParts.join('')); _oi++){
+    var _forms=_mktShortForms(MARKETS[_oi]);
+    for(var _fi=0;_fi<_forms.length;_fi++){
+      var _ore=new RegExp('注文\\s*'+_forms[_fi].replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+      if(_ore.test(t)){
+        var _on='注文'+_forms[_fi];
+        if(noteParts.indexOf(_on)<0)noteParts.push(_on);
+        t=t.replace(_ore,' ').replace(/\s+/,' ').trim();
+        break;
+      }
     }
   }
   var note=noteParts.join('・');
@@ -2058,6 +2105,7 @@ function startFieldMic(fieldId){
   else if(id==='step4'){buildStatView();}
   else if(id==='step5'){buildSettingsTab();}
   else if(id==='step6'){buildSettlementView();loadApiConfigToForm();}
+  _updateFab();
 }
 function goToStep2(){
   var items=getItems().filter(function(it){return it.name;});
@@ -2407,6 +2455,29 @@ function reApplyDist(){
 }
 
 // 振分け表の再構築要否を判定する署名。
+// 市場名から短縮形の候補を作る（「福岡花市場」→ 福岡 / 福岡市場 など）
+// 市場名をユーザーが自由に設定していても「注文〇〇」を拾えるようにする。
+function _mktShortForms(m){
+  var forms=[m];
+  ['花市場','市場','花き','フラワー','花'].forEach(function(suf){
+    if(m.indexOf(suf)>=0){var s=m.split(suf).join('');if(s)forms.push(s);}
+  });
+  return forms.filter(function(s){return s&&s.length>=1;});
+}
+// 備考に「注文〇〇」があれば、その市場の番号を返す（なければ -1）。
+function _orderMarketIndex(note){
+  if(!note)return -1;
+  var idx=note.indexOf('注文');if(idx<0)return -1;
+  var after=note.slice(idx+2).replace(/[\s・、,，]/g,'');
+  if(!after)return -1;
+  for(var mi=0;mi<MARKETS.length;mi++){
+    var forms=_mktShortForms(MARKETS[mi]);
+    for(var s=0;s<forms.length;s++){
+      if(after.indexOf(forms[s])>=0||forms[s].indexOf(after)>=0)return mi;
+    }
+  }
+  return -1;
+}
 // id だけでなく備考（注文〇〇）・箱数・本数も含めるので、
 // 備考を編集しただけでも振分けが組み直される。
 function _distSig(items){
@@ -2424,15 +2495,15 @@ function buildDistTable(items){
     var stemUnit=(it.count||'').replace(/[\d]/g,'').trim()||'本';
     var distVals=calcRatioDist(totalBoxes,getSyncedDistSettings());
     // 注文〇〇がある場合は対象市場に全数固定
-    var _orderMi=-1;
-    if(it.note){MARKETS.forEach(function(m,_mi2){if(it.note.indexOf('注文'+m.replace('花市場',''))>=0)_orderMi=_mi2;});}
+    var _orderMi=_orderMarketIndex(it.note);
     if(_orderMi>=0){distVals=MARKETS.map(function(m,_mi2){return _mi2===_orderMi?totalBoxes:0;});}
     var tr=document.createElement('tr'); tr.id='drow_'+it.id;
     tr.dataset.total=totalBoxes; tr.dataset.stems=totalStems; tr.dataset.stemunit=stemUnit; tr.dataset.id=it.id;
     var gradeLabel=it.grade==='外'?'<span class="badge ext">外</span>':'<span class="badge">'+it.grade+'</span>';
     var perBoxLabel=(totalBoxes>0&&stemsPerBox>0)?'<span style="font-size:10px;color:#888;display:block">(計'+totalStems+stemUnit+' / 1箱'+stemsPerBox+stemUnit+')</span>':'';
     var sizeLabel=it.size?it.size+'cm':'－';
-    var _orderBadge=_orderMi>=0?'<span style="background:#c62828;color:white;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">'+it.note+'</span>':'';
+    // 備考は注文〇〇なら赤、それ以外は緑で必ず表示する
+    var _noteBadge=it.note?'<span style="background:'+(_orderMi>=0?'#c62828':'#6d8a54')+';color:white;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;margin-left:4px">'+esc(it.note)+'</span>':'';
     var marketCells=MARKETS.map(function(m,mi){
       return '<td style="text-align:center;padding:4px 2px" id="mc_'+it.id+'_'+mi+'">'+
         '<input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span>'+
@@ -2441,7 +2512,7 @@ function buildDistTable(items){
     }).join('');
     var initRem=totalBoxes-distVals.reduce(function(a,b){return a+b;},0);
     var remClass='remaining'+(initRem===0?' zero':initRem<0?' negative':'');
-    tr.innerHTML='<td class="item-info">'+it.name+_orderBadge+'<br><span style="color:#888;font-weight:400">'+it.variety+'</span></td>'+
+    tr.innerHTML='<td class="item-info">'+it.name+_noteBadge+'<br><span style="color:#888;font-weight:400">'+it.variety+'</span></td>'+
       '<td style="text-align:center">'+gradeLabel+'</td>'+
       '<td style="text-align:center;font-size:12px;color:#8b6458;font-weight:700">'+sizeLabel+'</td>'+
       '<td class="total-col">'+totalBoxes+'<span class="unit-label">箱</span>'+perBoxLabel+'</td>'+
