@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Sakai Floric MITSUSE — 佐賀市三瀬村の花農家。トルコキキョウをはじめ季節の花を丹精込めて栽培し、日本各地の花市場へお届けします。">
+<title>Sakai Floric MITSUSE — 三瀬の花</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#ffffff;--dark2:#fafaf8;--dark3:#fefaf5;--dark4:#f5f0eb;
+  --light:#3a2e28;--light2:rgba(58,46,40,0.75);--light3:rgba(58,46,40,0.45);
+  --rose:#d4a0b0;--rose2:#b87888;--gold:#daaa77;--sage:#90c0a0;--muted:#b8a8a0;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--dark);color:var(--light);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:20px 52px;transition:background .5s,padding .4s}
+nav.solid{background:rgba(255,255,255,.97);backdrop-filter:blur(14px);padding:13px 52px;border-bottom:1px solid rgba(58,46,40,.06)}
+.nav-logo{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;letter-spacing:.12em;color:var(--light);text-decoration:none;display:flex;align-items:center;gap:10px}
+.nav-logo-icon{width:30px;height:30px;border-radius:50%;object-fit:cover;opacity:.9}
+.nav-links{display:flex;gap:28px;list-style:none}
+.nav-links a{color:var(--light3);text-decoration:none;font-size:11px;letter-spacing:.22em;font-weight:500;text-transform:uppercase;transition:color .25s}
+.nav-links a:hover{color:var(--light)}
+.nav-ham{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px}
+.nav-ham span{display:block;width:22px;height:1px;background:var(--light2);transition:all .3s}
+.mm{display:none;position:fixed;inset:0;z-index:190;background:rgba(255,255,255,.98);flex-direction:column;align-items:center;justify-content:center;gap:32px}
+.mm.open{display:flex}
+.mm a{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:30px;color:var(--light);text-decoration:none;letter-spacing:.1em;opacity:.85;transition:opacity .2s}
+.mm a:hover{opacity:1}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:100px 24px 80px;background:radial-gradient(ellipse 65% 70% at 50% 42%,#fff0f5 0%,rgba(250,250,248,.5) 58%,transparent 72%)}
+.hero-glow{display:none}
+.hero-petals{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.petal{position:absolute;border-radius:50% 0 50% 0;opacity:0;animation:petal-fall linear infinite}
+@keyframes petal-fall{0%{opacity:0;transform:translateY(-20px) rotate(0deg)}10%{opacity:.35}80%{opacity:.15}100%{opacity:0;transform:translateY(110vh) rotate(720deg)}}
+.hero-content{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center}
+.hero-art{width:min(270px,62vw);aspect-ratio:4/5;overflow:hidden;
+  background:url('meishi_front.png') center 32%/135% auto no-repeat;
+  filter:brightness(.75) saturate(1.55) contrast(1.06);
+  -webkit-mask-image:radial-gradient(ellipse 90% 66% at 50% 52%,black 24%,rgba(0,0,0,.55) 50%,transparent 72%);
+  mask-image:radial-gradient(ellipse 90% 66% at 50% 52%,black 24%,rgba(0,0,0,.55) 50%,transparent 72%)}
+.hero-brand{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:clamp(18px,3.4vw,34px);letter-spacing:.18em;color:var(--light);text-align:center;margin-top:18px;line-height:1.2}
+.hero-brand-sub{font-size:11px;letter-spacing:.4em;color:var(--rose);text-transform:uppercase;text-align:center;margin-top:8px}
+.hero-rule{width:1px;height:32px;background:linear-gradient(to bottom,rgba(245,240,235,.22),transparent);margin:16px auto 0}
+.hero-tagline{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:clamp(13px,1.8vw,16px);letter-spacing:.35em;color:var(--light3);text-align:center;margin-top:14px}
+.hero-scroll{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:9px;animation:scroll-bob 2.8s ease-in-out infinite}
+.hero-scroll-bar{width:1px;height:40px;background:linear-gradient(to bottom,rgba(245,240,235,.28),transparent)}
+.hero-scroll-txt{font-size:9px;letter-spacing:.3em;color:var(--light3);text-transform:uppercase}
+@keyframes scroll-bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(7px)}}
+
+/* ── SHOWCASE STRIP ── */
+.showcase{background:var(--dark2);border-bottom:1px solid rgba(245,240,235,.06)}
+.showcase-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.sc-card{display:flex;flex-direction:column;text-decoration:none;border-right:1px solid rgba(245,240,235,.06);transition:background .25s}
+.sc-card:last-child{border-right:none}
+.sc-card:hover{background:var(--dark3)}
+.sc-visual{height:160px;overflow:hidden;position:relative;background:var(--dark3);display:flex;align-items:center;justify-content:center}
+.sc-body{padding:20px 24px 24px;flex:1;display:flex;flex-direction:column}
+.sc-title{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--light);margin-bottom:6px;margin-top:6px;letter-spacing:.02em}
+.sc-desc{font-size:12px;color:var(--muted);line-height:1.7;flex:1}
+.sc-arrow{font-size:16px;color:var(--rose);margin-top:12px;display:block;transition:transform .2s}
+.sc-card:hover .sc-arrow{transform:translateX(4px)}
+/* video preview */
+.sc-yt-thumb{width:100%;height:100%;object-fit:cover;opacity:.75}
+.sc-play-icon{width:44px;height:44px;border-radius:50%;background:rgba(184,120,136,.3);border:1.5px solid rgba(184,120,136,.5);display:flex;align-items:center;justify-content:center;color:var(--rose);font-size:18px}
+/* photo grid preview */
+.sc-photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:100%;height:100%}
+.sc-photo-cell{background:var(--dark4);overflow:hidden}
+.sc-photo-cell img{width:100%;height:100%;object-fit:cover;opacity:.7}
+.sc-photo-placeholder{width:100%;height:100%;background:linear-gradient(135deg,var(--dark4),#e8e0d8)}
+/* instagram */
+.sc-insta-bg{width:100%;height:100%;background:linear-gradient(135deg,#833ab4,#fd1d1d 50%,#fcb045);display:flex;align-items:center;justify-content:center;opacity:.5}
+.sc-insta-icon{font-size:52px;filter:grayscale(.3)}
+/* app */
+.sc-app-bg{width:100%;height:100%;background:linear-gradient(135deg,var(--dark3),#e8d8e0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.sc-app-icon{font-size:44px}
+.sc-price-badge{background:var(--rose);color:white;font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;letter-spacing:.05em}
+
+/* ── SHARED ── */
+.label{font-size:10px;letter-spacing:.35em;color:var(--rose);text-transform:uppercase;display:block;margin-bottom:12px}
+.h2{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(28px,4.5vw,48px);line-height:1.25;color:var(--light);margin-bottom:18px}
+.h2 em{font-style:italic;color:var(--rose)}
+.rule{width:36px;height:1px;background:var(--rose);margin-bottom:28px}
+.body-text{font-size:14px;line-height:2.1;color:var(--light2)}
+.body-text p{margin-bottom:1.4em}
+.body-text p:last-child{margin-bottom:0}
+
+/* ── ABOUT ── */
+.about{padding:110px 52px;max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:90px;align-items:center}
+.about-visual{position:relative}
+.about-img-crop{position:relative;overflow:hidden;aspect-ratio:1/1;border-radius:2px;-webkit-mask-image:radial-gradient(ellipse 90% 90% at 50% 50%,black 30%,rgba(0,0,0,.7) 55%,transparent 80%);mask-image:radial-gradient(ellipse 90% 90% at 50% 50%,black 30%,rgba(0,0,0,.7) 55%,transparent 80%)}
+.about-img{width:100%;height:100%;object-fit:cover;object-position:center 42%;filter:brightness(.85) saturate(1.1) contrast(1.05)}
+.about-frame{position:absolute;bottom:-16px;right:-16px;width:65%;height:65%;border:1px solid rgba(184,120,136,.2);border-radius:2px;pointer-events:none}
+
+/* ── STAT ── */
+.stat-band{background:var(--dark3);border-top:1px solid rgba(245,240,235,.06);border-bottom:1px solid rgba(245,240,235,.06)}
+.stat-row{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+.stat-cell{padding:52px 40px;text-align:center;border-right:1px solid rgba(245,240,235,.06)}
+.stat-cell:last-child{border-right:none}
+.stat-n{font-family:'Cormorant Garamond',serif;font-size:clamp(42px,5.5vw,60px);font-weight:300;color:var(--rose);line-height:1;margin-bottom:9px}
+.stat-l{font-size:11px;letter-spacing:.22em;color:var(--muted);text-transform:uppercase}
+
+
+/* ── VIDEO GALLERY ── */
+.videos-wrap{padding:110px 52px;max-width:1280px;margin:0 auto}
+.video-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px}
+.video-card{background:var(--dark3);border-radius:3px;overflow:hidden;transition:transform .25s}
+.video-card:hover{transform:translateY(-4px)}
+.video-embed{position:relative;width:100%;padding-top:56.25%}
+.video-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.video-title{padding:11px 13px;font-size:12px;color:var(--light2);line-height:1.5}
+.videos-empty{text-align:center;color:var(--muted);padding:52px 20px;border:1px dashed rgba(245,240,235,.1);border-radius:3px;margin-top:48px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px}
+
+/* ── PHOTO GALLERY ── */
+.photos-wrap{padding:110px 52px;max-width:1280px;margin:0 auto}
+.photo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:48px}
+.photo-cell{aspect-ratio:1;overflow:hidden;background:var(--dark3);cursor:pointer;position:relative}
+.photo-cell img{width:100%;height:100%;object-fit:cover;opacity:.82;transition:opacity .3s,transform .4s}
+.photo-cell:hover img{opacity:1;transform:scale(1.04)}
+.photos-empty{text-align:center;color:var(--muted);padding:52px 20px;border:1px dashed rgba(245,240,235,.1);border-radius:3px;margin-top:48px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px}
+
+/* ── IG FEED PLACEHOLDER ── */
+.ig-feed-embed{width:100%;min-height:100px}
+.ig-placeholder{padding:52px 20px 44px;text-align:center}
+.ig-ph-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:520px;margin:0 auto 32px;border-radius:3px;overflow:hidden}
+.ig-ph-cell{aspect-ratio:1;background:var(--dark3);background-image:linear-gradient(135deg,rgba(160,120,150,.13),rgba(90,70,120,.08))}
+.ig-ph-icon{font-size:26px;margin-bottom:14px;opacity:.45}
+.ig-ph-handle{font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--light);letter-spacing:.1em;margin-bottom:8px}
+.ig-ph-text{font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.8}
+.ig-ph-btn{display:inline-block;padding:11px 30px;border:1px solid rgba(245,240,235,.22);color:var(--light);text-decoration:none;font-size:11px;letter-spacing:.28em;text-transform:uppercase;transition:all .25s;border-radius:2px}
+.ig-ph-btn:hover{background:rgba(245,240,235,.06);border-color:rgba(245,240,235,.45)}
+.ig-ph-note{font-size:11px;color:rgba(154,136,128,.38);margin-top:20px;line-height:1.7}
+
+/* ── INSTAGRAM ── */
+.insta-band{background:var(--dark2);border-top:1px solid rgba(245,240,235,.06)}
+.insta-wrap{padding:80px 52px;max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:64px}
+.insta-icon-block{flex-shrink:0;width:100px;height:100px;border-radius:24px;background:linear-gradient(135deg,#833ab4 0%,#fd1d1d 50%,#fcb045 100%);display:flex;align-items:center;justify-content:center;font-size:52px}
+.insta-text{flex:1}
+.insta-handle{font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--light);margin-bottom:8px;font-style:italic;letter-spacing:.08em}
+.insta-desc{font-size:14px;color:var(--light2);line-height:1.9;margin-bottom:20px}
+.insta-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border:1px solid rgba(184,120,136,.45);color:var(--rose);text-decoration:none;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px;letter-spacing:.12em;transition:all .3s}
+.insta-btn:hover{background:var(--rose);color:white;border-color:var(--rose)}
+
+/* ── APP SALES ── */
+.app-band{background:var(--dark3)}
+.app-inner{padding:110px 52px;max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1.15fr .85fr;gap:72px;align-items:start}
+.app-features{display:flex;flex-direction:column;gap:12px;margin-top:28px}
+.app-feature{display:flex;gap:15px;align-items:flex-start;padding:16px 18px;background:rgba(245,240,235,.04);border-radius:3px;border-left:2px solid var(--rose)}
+.app-feat-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.app-feat-text{font-size:13px;color:var(--light2);line-height:1.7}
+.app-feat-title{font-weight:700;color:var(--light);margin-bottom:3px;font-size:14px}
+/* purchase card */
+.app-card{background:var(--dark2);border:1px solid rgba(245,240,235,.09);border-radius:5px;overflow:hidden;position:sticky;top:88px}
+.app-card-header{background:linear-gradient(135deg,rgba(184,120,136,.15),rgba(152,120,168,.1));padding:32px 32px 28px;border-bottom:1px solid rgba(245,240,235,.07)}
+.app-card-name{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;color:var(--light);margin-bottom:6px}
+.app-card-for{font-size:10px;letter-spacing:.28em;color:var(--rose);text-transform:uppercase;margin-bottom:20px}
+.app-price-row{display:flex;align-items:baseline;gap:8px}
+.app-price{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:300;color:var(--light);line-height:1}
+.app-price-unit{font-size:14px;color:var(--muted)}
+.app-price-note{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.05em}
+.app-card-body{padding:28px 32px}
+.app-card-features{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:26px}
+.app-card-features li{display:flex;gap:9px;font-size:13px;color:var(--light2)}
+.app-card-features li::before{content:'✦';color:var(--rose);flex-shrink:0;font-size:9px;margin-top:4px}
+/* flow steps */
+.purchase-flow{background:rgba(245,240,235,.03);border-radius:3px;padding:16px 18px;margin-bottom:22px;border:1px solid rgba(245,240,235,.07)}
+.flow-title{font-size:10px;letter-spacing:.25em;color:var(--rose);text-transform:uppercase;margin-bottom:12px}
+.flow-steps{display:flex;flex-direction:column;gap:8px}
+.flow-step{display:flex;gap:10px;align-items:flex-start;font-size:12px;color:var(--light2)}
+.flow-num{width:18px;height:18px;border-radius:50%;background:var(--rose);color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.app-cta{display:block;width:100%;padding:15px;background:var(--rose);color:white;border:none;font-size:15px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;border-radius:3px;letter-spacing:.05em;transition:background .2s;text-align:center;text-decoration:none}
+.app-cta:hover{background:var(--rose2)}
+.app-cta-sub{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;letter-spacing:.08em}
+.manual-dl-section{margin:20px 0 18px}
+.manual-dl-label{font-size:10px;letter-spacing:.3em;color:var(--rose);text-transform:uppercase;margin-bottom:10px}
+.manual-dl-btns{display:flex;gap:8px;flex-wrap:wrap}
+.manual-btn{display:inline-block;padding:7px 14px;font-size:11px;letter-spacing:.1em;color:var(--rose);border:1px solid rgba(184,120,136,.4);border-radius:2px;text-decoration:none;transition:background .2s,color .2s}
+.manual-btn:hover{background:rgba(184,120,136,.15);color:var(--light)}
+
+/* ── CONTACT BANNER ── */
+.contact-band{padding:96px 52px;text-align:center;position:relative;overflow:hidden;border-top:1px solid rgba(245,240,235,.06)}
+.contact-band::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 55% 75% at 50% 50%,rgba(184,120,136,.08),transparent 70%)}
+.contact-band .h2{position:relative}
+.contact-sub{font-size:14px;color:var(--light2);line-height:2;max-width:460px;margin:0 auto 38px;position:relative}
+.contact-btn{display:inline-block;border:1px solid rgba(184,120,136,.5);color:var(--rose);padding:15px 42px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;letter-spacing:.15em;text-decoration:none;transition:all .3s;position:relative}
+.contact-btn:hover{background:var(--rose);color:white;border-color:var(--rose)}
+
+/* ── FOOTER ── */
+footer{background:var(--dark2);border-top:1px solid rgba(245,240,235,.06)}
+.footer-main{max-width:1280px;margin:0 auto;padding:72px 52px 48px;display:grid;grid-template-columns:2fr 1fr 1fr;gap:56px}
+.footer-brand{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;color:var(--light);margin-bottom:14px;display:flex;align-items:center;gap:13px;cursor:pointer;user-select:none}
+.footer-brand-icon{width:34px;height:34px;border-radius:50%;object-fit:cover;opacity:.85}
+.footer-desc{font-size:13px;color:var(--muted);line-height:1.9;max-width:270px}
+.footer-col-title{font-size:10px;letter-spacing:.3em;color:var(--rose);text-transform:uppercase;margin-bottom:18px}
+.footer-links{list-style:none;display:flex;flex-direction:column;gap:12px}
+.footer-links a{font-size:14px;color:var(--muted);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--light)}
+.footer-contact-row{display:flex;gap:11px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.footer-contact-icon{color:var(--rose);flex-shrink:0;line-height:1.6}
+.footer-bottom{border-top:1px solid rgba(245,240,235,.06);max-width:1280px;margin:0 auto;padding:20px 52px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:rgba(154,136,128,.4);letter-spacing:.1em}
+
+/* ── PURCHASE MODAL ── */
+.modal-overlay{position:fixed;inset:0;z-index:500;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:24px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--dark2);border:1px solid rgba(245,240,235,.1);border-radius:5px;padding:40px 44px;width:100%;max-width:520px;position:relative;max-height:90vh;overflow-y:auto}
+.modal-close{position:absolute;top:15px;right:18px;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1}
+.modal-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;color:var(--light);margin-bottom:5px}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:24px}
+.purchase-info{background:rgba(184,120,136,.1);border:1px solid rgba(184,120,136,.25);border-radius:3px;padding:16px 18px;margin-bottom:24px}
+.purchase-price{font-family:'Cormorant Garamond',serif;font-size:32px;color:var(--light);margin-bottom:4px}
+.purchase-price span{font-size:14px;color:var(--muted);font-family:'Noto Sans JP'}
+.purchase-note{font-size:12px;color:var(--light2);line-height:1.8}
+.transfer-box{background:rgba(245,240,235,.04);border:1px solid rgba(245,240,235,.1);border-radius:3px;padding:14px 16px;margin-bottom:24px}
+.transfer-title{font-size:10px;letter-spacing:.25em;color:var(--rose);text-transform:uppercase;margin-bottom:10px}
+.transfer-info{font-size:14px;color:var(--light);font-weight:600;letter-spacing:.05em}
+.transfer-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.form-row{margin-bottom:16px}
+.form-label{display:block;font-size:10px;letter-spacing:.25em;color:var(--rose);text-transform:uppercase;margin-bottom:7px}
+.form-input{width:100%;background:rgba(245,240,235,.05);border:1px solid rgba(245,240,235,.12);border-radius:3px;padding:11px 13px;font-size:14px;color:var(--light);font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:rgba(184,120,136,.5)}
+textarea.form-input{min-height:88px;resize:vertical}
+.form-submit{width:100%;padding:15px;background:var(--rose);color:white;border:none;border-radius:3px;font-size:15px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:background .2s;letter-spacing:.05em;margin-top:4px}
+.form-submit:hover{background:var(--rose2)}
+.form-note{font-size:11px;color:var(--muted);text-align:center;margin-top:9px;line-height:1.6}
+.pay-tabs{display:flex;border:1px solid rgba(184,120,136,.28);border-radius:2px;margin:18px 0 22px;overflow:hidden}
+.pay-tab{flex:1;padding:10px 6px;font-size:12px;letter-spacing:.1em;background:none;border:none;border-right:1px solid rgba(184,120,136,.28);color:var(--muted);cursor:pointer;transition:background .2s,color .2s}
+.pay-tab:last-child{border-right:none}
+.pay-tab.active{background:rgba(184,120,136,.18);color:var(--rose)}
+.pay-panel{display:none}
+.pay-panel.active{display:block}
+.credit-section{padding:8px 0 16px;text-align:center}
+.credit-note{font-size:13px;color:var(--light2);line-height:1.8;margin-bottom:20px}
+.credit-go-btn{display:inline-block;background:var(--rose);color:#fff;padding:13px 38px;font-size:13px;letter-spacing:.12em;text-decoration:none;border-radius:2px;transition:background .2s;cursor:pointer}
+.credit-go-btn:hover{background:var(--rose2)}
+.credit-pending{font-size:13px;color:var(--muted);padding:12px 0;text-align:center;letter-spacing:.05em}
+
+/* ── ADMIN MODAL ── */
+.admin-overlay{position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.92);backdrop-filter:blur(8px);display:none;align-items:flex-start;justify-content:center;padding:36px 24px;overflow-y:auto}
+.admin-overlay.open{display:flex}
+.admin-box{background:var(--dark2);border:1px solid rgba(245,240,235,.12);border-radius:5px;padding:32px 36px;width:100%;max-width:720px}
+.admin-tabs{display:flex;gap:2px;margin-bottom:28px;background:var(--dark3);border-radius:4px;padding:3px}
+.admin-tab{flex:1;padding:9px 6px;font-size:12px;letter-spacing:.1em;color:var(--muted);background:transparent;border:none;border-radius:3px;cursor:pointer;transition:all .2s;font-family:'Noto Sans JP',sans-serif}
+.admin-tab.active{background:var(--dark2);color:var(--light)}
+.admin-panel{display:none}
+.admin-panel.active{display:block}
+.admin-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;color:var(--light);margin-bottom:4px}
+.admin-sub{font-size:12px;color:var(--muted);margin-bottom:22px}
+.admin-section-title{font-size:10px;letter-spacing:.3em;color:var(--rose);text-transform:uppercase;margin-bottom:12px}
+.admin-add-row{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.admin-input{flex:1;min-width:180px;background:rgba(245,240,235,.05);border:1px solid rgba(245,240,235,.12);border-radius:3px;padding:10px 13px;font-size:13px;color:var(--light);font-family:'Noto Sans JP',sans-serif;outline:none}
+.admin-input:focus{border-color:rgba(184,120,136,.5)}
+.admin-add-btn{padding:10px 20px;background:var(--rose);color:white;border:none;border-radius:3px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.admin-add-btn:hover{background:var(--rose2)}
+.admin-list{display:flex;flex-direction:column;gap:9px;margin-bottom:20px}
+.admin-item{display:flex;align-items:center;gap:11px;background:rgba(245,240,235,.04);border-radius:3px;padding:9px 13px}
+.admin-item-thumb{width:72px;height:40px;object-fit:cover;border-radius:2px;flex-shrink:0;background:#333}
+.admin-item-info{flex:1;min-width:0}
+.admin-item-edit{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(245,240,235,.12);color:var(--light);font-size:12px;padding:2px 0;outline:none;font-family:'Noto Sans JP',sans-serif}
+.admin-item-id{font-size:10px;color:var(--muted);margin-top:3px}
+.admin-del{background:none;border:1px solid rgba(210,70,70,.3);color:#c84848;border-radius:2px;padding:4px 9px;font-size:11px;cursor:pointer;flex-shrink:0}
+.admin-close-btn{width:100%;padding:12px;background:rgba(245,240,235,.06);border:1px solid rgba(245,240,235,.1);color:var(--light2);border-radius:3px;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif}
+.admin-empty{font-size:13px;color:var(--muted);text-align:center;padding:22px;border:1px dashed rgba(245,240,235,.1);border-radius:3px}
+.admin-setting-row{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;margin-bottom:16px}
+.admin-setting-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.admin-save-btn{padding:10px 20px;background:var(--rose);color:white;border:none;border-radius:3px;font-size:13px;font-weight:600;cursor:pointer;margin-top:6px}
+.admin-saved-msg{font-size:12px;color:var(--sage);margin-top:8px;display:none}
+.admin-pw-hint{font-size:11px;color:rgba(184,120,136,.4);margin-top:16px;text-align:center}
+
+/* ── RESPONSIVE ── */
+@media(max-width:1000px){
+  .showcase-inner{grid-template-columns:repeat(2,1fr)}
+  .sc-card:nth-child(2){border-right:none}
+  .sc-card:nth-child(3){border-top:1px solid rgba(245,240,235,.06)}
+  .sc-card:nth-child(4){border-top:1px solid rgba(245,240,235,.06);border-right:none}
+}
+@media(max-width:900px){
+  nav{padding:16px 24px}
+  nav.solid{padding:11px 24px}
+  .nav-links{display:none}
+  .nav-ham{display:flex}
+  .about{grid-template-columns:1fr;gap:44px;padding:72px 24px}
+  .about-visual{display:none}
+  .stat-row{grid-template-columns:1fr}
+  .stat-cell{border-right:none;border-bottom:1px solid rgba(245,240,235,.06);padding:36px}
+  .stat-cell:last-child{border-bottom:none}
+  .videos-wrap,.photos-wrap{padding:72px 24px}
+  .video-grid{grid-template-columns:1fr 1fr}
+  .photo-grid{grid-template-columns:repeat(3,1fr)}
+  .insta-wrap{padding:60px 24px;gap:36px;flex-wrap:wrap}
+  .insta-icon-block{width:72px;height:72px;font-size:38px;border-radius:16px}
+  .app-inner{grid-template-columns:1fr;gap:44px;padding:72px 24px}
+  .app-card{position:static}
+  .contact-band{padding:72px 24px}
+  .footer-main{grid-template-columns:1fr;gap:36px;padding:48px 24px 32px}
+  .footer-bottom{padding:16px 24px;flex-direction:column;gap:5px;text-align:center}
+  .modal-box{padding:26px 22px}
+  .admin-box{padding:26px 22px}
+  .showcase-inner{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+  .video-grid{grid-template-columns:1fr}
+  .photo-grid{grid-template-columns:repeat(2,1fr)}
+  .showcase-inner{grid-template-columns:1fr 1fr}
+}
+
+/* ── 明るい水彩画テーマ オーバーライド ── */
+/* hero-art: 明るいテーマ向けに輝度・マスク調整 */
+.hero-art-img{
+  filter:brightness(.88) saturate(1.3) contrast(1.04);
+  -webkit-mask-image:radial-gradient(ellipse 82% 72% at 50% 44%,black 22%,rgba(0,0,0,.55) 50%,transparent 72%);
+  mask-image:radial-gradient(ellipse 82% 72% at 50% 44%,black 22%,rgba(0,0,0,.55) 50%,transparent 72%)}
+/* about: 明るく鮮やかに */
+.about-img{filter:brightness(1) saturate(1.2)}
+.about-img-crop{
+  -webkit-mask-image:radial-gradient(ellipse 90% 90% at 50% 50%,black 30%,rgba(0,0,0,.7) 55%,transparent 80%);
+  mask-image:radial-gradient(ellipse 90% 90% at 50% 50%,black 30%,rgba(0,0,0,.7) 55%,transparent 80%)}
+/* stat */
+.stat-band{border-top:1px solid rgba(58,46,40,.06);border-bottom:1px solid rgba(58,46,40,.06)}
+/* video */
+.videos-wrap{border-top:1px solid rgba(58,46,40,.06)}
+.video-card{border:1px solid rgba(58,46,40,.07)}
+/* ig placeholder */
+.ig-ph-cell{background-image:linear-gradient(135deg,rgba(160,120,150,.06),rgba(90,70,120,.03))}
+.ig-ph-btn{border:1px solid rgba(184,120,136,.45);color:var(--light)}
+.ig-ph-btn:hover{background:rgba(184,120,136,.1);border-color:var(--rose)}
+/* insta */
+.insta-btn{border-color:rgba(184,120,136,.45)}
+.insta-btn:hover{background:var(--rose);border-color:var(--rose)}
+/* contact */
+.contact-band{background:radial-gradient(ellipse 55% 75% at 50% 50%,rgba(184,120,136,.08),transparent 70%);border-top:1px solid rgba(58,46,40,.06)}
+.contact-btn{border-color:rgba(184,120,136,.45)}
+.contact-btn:hover{background:var(--rose);border-color:var(--rose)}
+/* app */
+.app-card{border:1px solid rgba(58,46,40,.09)}
+/* modal / admin overlay */
+.modal-overlay{background:rgba(255,255,255,.88)}
+.admin-overlay{background:rgba(255,255,255,.88)}
+.modal-box,.admin-box{border:1px solid rgba(58,46,40,.1)}
+.form-input,.admin-input{background:rgba(245,240,235,.6);border:1px solid rgba(58,46,40,.12);color:var(--light)}
+.form-input::placeholder,.admin-input::placeholder{color:var(--muted)}
+.admin-item{background:rgba(245,240,235,.5)}
+/* sc */
+.sc-insta-bg{opacity:.35}
+/* petal: パステルカラー */
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    Sakai Floric MITSUSE
+  </a>
+  <ul class="nav-links">
+    <li><a href="#about">About</a></li>
+    <li><a href="#videos">Videos</a></li>
+    <li><a href="#photos">Photos</a></li>
+    <li><a href="#instagram">Instagram</a></li>
+    <li><a href="#app">App</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <div class="nav-ham" id="navHam" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<div class="mm" id="mobileMenu">
+  <a href="#about" onclick="toggleMenu()">About</a>
+  <a href="#videos" onclick="toggleMenu()">Videos</a>
+  <a href="#photos" onclick="toggleMenu()">Photos</a>
+  <a href="#instagram" onclick="toggleMenu()">Instagram</a>
+  <a href="#app" onclick="toggleMenu()">App</a>
+  <a href="#contact" onclick="toggleMenu()">Contact</a>
+</div>
+
+<!-- ── HERO ── -->
+<section class="hero" id="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-petals" id="heroPetals"></div>
+  <div class="hero-content">
+    <div class="hero-art"></div>
+    <div class="hero-brand">Sakai Floric MITSUSE</div>
+    <div class="hero-brand-sub">三瀬高原の花つくり</div>
+  </div>
+  <div class="hero-scroll">
+    <div class="hero-scroll-bar"></div>
+    <span class="hero-scroll-txt">Scroll</span>
+  </div>
+</section>
+
+<!-- ── SHOWCASE STRIP ── -->
+<div class="showcase">
+  <div class="showcase-inner">
+    <!-- Videos -->
+    <a href="#videos" class="sc-card">
+      <div class="sc-visual" id="scVideoVisual">
+        <div class="sc-play-icon">▶</div>
+      </div>
+      <div class="sc-body">
+        <span class="label">Videos</span>
+        <div class="sc-title">ビデオギャラリー</div>
+        <div class="sc-desc">栽培の様子を動画でご覧いただけます</div>
+        <span class="sc-arrow">→</span>
+      </div>
+    </a>
+    <!-- Photos -->
+    <a href="#photos" class="sc-card">
+      <div class="sc-visual" style="padding:0">
+        <div class="sc-photo-grid" id="scPhotoGrid">
+          <div class="sc-photo-cell sc-photo-placeholder"></div>
+          <div class="sc-photo-cell sc-photo-placeholder"></div>
+          <div class="sc-photo-cell sc-photo-placeholder"></div>
+          <div class="sc-photo-cell sc-photo-placeholder"></div>
+        </div>
+      </div>
+      <div class="sc-body">
+        <span class="label">Photos</span>
+        <div class="sc-title">フォトギャラリー</div>
+        <div class="sc-desc">農園・花の最新写真をご覧ください</div>
+        <span class="sc-arrow">→</span>
+      </div>
+    </a>
+    <!-- Instagram -->
+    <a href="#instagram" class="sc-card" id="scInstaCard" target="_blank">
+      <div class="sc-visual">
+        <div class="sc-insta-bg">
+          <span class="sc-insta-icon">📷</span>
+        </div>
+      </div>
+      <div class="sc-body">
+        <span class="label">Instagram</span>
+        <div class="sc-title" id="scInstaHandle">@SAKAI_FLORIC_MITSUSE</div>
+        <div class="sc-desc">最新情報をインスタグラムで発信中</div>
+        <span class="sc-arrow">→</span>
+      </div>
+    </a>
+    <!-- App -->
+    <a href="#app" class="sc-card">
+      <div class="sc-visual">
+        <div class="sc-app-bg">
+          <span class="sc-app-icon">📱</span>
+        </div>
+      </div>
+      <div class="sc-body">
+        <span class="label">App</span>
+        <div class="sc-title">出荷伝票アプリ</div>
+        <div class="sc-desc">音声入力・市場振り分け・統計管理</div>
+        <span class="sc-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- ── ABOUT ── -->
+<div id="about">
+  <div class="about">
+    <div>
+      <span class="label">About Us</span>
+      <h2 class="h2">佐賀市三瀬村で<br><em>花を育てる</em></h2>
+      <div class="rule"></div>
+      <div class="body-text">
+        <p>SAKAI FLORIC は、佐賀県佐賀市三瀬村に拠点を置く花の生産農家です。三瀬峠の麓、霧が漂う清澄な空気と豊かな水に恵まれたこの地で、丹精込めて花を育てています。</p>
+        <p>トルコキキョウをはじめ、ひまわり、金魚草、フリージア、アネモネなど四季折々の品種を栽培。日本各地の花市場へ、収穫したての新鮮な花をお届けしています。</p>
+        <p>花ひとつひとつに込められた丁寧な仕事が、贈る人・受け取る人の笑顔につながることを願っています。</p>
+      </div>
+    </div>
+    <div class="about-visual">
+      <div class="about-img-crop">
+        <img src="meishi_front.png" alt="" class="about-img">
+      </div>
+      <div class="about-frame"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── STAT BAND ── -->
+<div class="stat-band">
+  <div class="stat-row">
+    <div class="stat-cell">
+      <div class="stat-n">5</div>
+      <div class="stat-l">取扱品目</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-n">4</div>
+      <div class="stat-l">出荷市場</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-n">365</div>
+      <div class="stat-l">日々の栽培</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── VIDEO GALLERY ── -->
+<div id="videos" style="background:var(--dark2);border-top:1px solid rgba(245,240,235,.06)">
+  <div class="videos-wrap">
+    <span class="label">Video Gallery</span>
+    <h2 class="h2">ビデオ<em>ギャラリー</em></h2>
+    <div class="rule"></div>
+    <div id="videoGrid" class="video-grid"></div>
+    <div id="videosEmpty" class="videos-empty">動画はまだ登録されていません<br><span style="font-size:12px;font-family:'Noto Sans JP';font-style:normal;display:block;margin-top:10px;color:rgba(154,136,128,.45)">管理パネルから YouTube 動画を追加できます</span></div>
+  </div>
+</div>
+
+<!-- ── PHOTO GALLERY ── -->
+<div id="photos">
+  <div class="photos-wrap">
+    <span class="label">Photo Gallery</span>
+    <h2 class="h2">フォト<em>ギャラリー</em></h2>
+    <div class="rule"></div>
+    <!-- Instagram feed embed (管理パネルでウィジェットHTMLを設定) -->
+    <div id="igFeedEmbed" class="ig-feed-embed" style="display:none"></div>
+    <!-- デフォルトプレースホルダー -->
+    <div id="igFeedPlaceholder" class="ig-placeholder">
+      <div class="ig-ph-grid">
+        <div class="ig-ph-cell"></div><div class="ig-ph-cell"></div><div class="ig-ph-cell"></div>
+        <div class="ig-ph-cell"></div><div class="ig-ph-cell"></div><div class="ig-ph-cell"></div>
+        <div class="ig-ph-cell"></div><div class="ig-ph-cell"></div><div class="ig-ph-cell"></div>
+      </div>
+      <div class="ig-ph-icon">📷</div>
+      <div class="ig-ph-handle" id="igPhHandle">@sakai_floric_mitsuse</div>
+      <p class="ig-ph-text">インスタグラムで最新の栽培の様子や旬の花をご覧いただけます</p>
+      <a href="https://www.instagram.com/sakai_floric_mitsuse/" id="igPhLink" class="ig-ph-btn" target="_blank" rel="noopener">Instagram で見る</a>
+      <p class="ig-ph-note">管理パネルで「Instagram フィードHTML」を設定すると、このページにタイムラインが表示されます</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── INSTAGRAM ── -->
+<div id="instagram" class="insta-band">
+  <div class="insta-wrap">
+    <div class="insta-icon-block">📷</div>
+    <div class="insta-text">
+      <span class="label">Instagram</span>
+      <div class="insta-handle" id="instaHandleDisplay">@SAKAI_FLORIC_MITSUSE</div>
+      <p class="insta-desc">三瀬の農園から、日々の栽培の様子や旬の花をインスタグラムでお届けしています。<br>ぜひフォローしてください。</p>
+      <a href="https://www.instagram.com/sakai_floric_mitsuse/" id="instaLink" class="insta-btn" target="_blank" rel="noopener">
+        Instagram をフォロー →
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ── APP SALES ── -->
+<div id="app" class="app-band">
+  <div class="app-inner">
+    <div>
+      <span class="label">Our App</span>
+      <h2 class="h2">出荷伝票<em>アプリ</em></h2>
+      <div class="rule"></div>
+      <p style="font-size:14px;color:var(--light2);line-height:2;margin-bottom:28px">音声入力で素早く伝票を作成。日本各地の花市場への出荷業務を、スマートフォン1台で完結できます。花農家の現場から生まれた実用的なアプリです。</p>
+      <div class="app-features">
+        <div class="app-feature">
+          <div class="app-feat-icon">🎤</div>
+          <div class="app-feat-text">
+            <div class="app-feat-title">音声入力対応</div>
+            「ボヤージュブルー 2箱」と話すだけで自動入力。作業中でも両手を使わず操作できます。
+          </div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon">📊</div>
+          <div class="app-feat-text">
+            <div class="app-feat-title">市場別自動振り分け</div>
+            各市場への出荷比率を設定するだけで品目ごとに自動計算。振り分けの手間がなくなります。
+          </div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon">📈</div>
+          <div class="app-feat-text">
+            <div class="app-feat-title">出荷統計・精算管理</div>
+            品種別・月別・日別の出荷データを自動集計。市場からの精算PDFも解析できます。
+          </div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon">📱</div>
+          <div class="app-feat-text">
+            <div class="app-feat-title">スマホ・オフライン対応</div>
+            インストール不要のPWA。ネット環境がなくても動作し、複数端末で同期も可能です。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="app-card">
+        <div class="app-card-header">
+          <div class="app-card-name">出荷伝票アプリ</div>
+          <div class="app-card-for">For 花農家・出荷業者</div>
+          <div class="app-price-note">買い切り / 永続利用</div>
+        </div>
+        <div class="app-card-body">
+          <ul class="app-card-features">
+            <li>取扱説明書（Word形式）付属</li>
+            <li>設定手順はすべて書面でご案内</li>
+            <li>スマートフォン・タブレット対応</li>
+            <li>継続的なアップデート対応</li>
+          </ul>
+          <div class="purchase-flow">
+            <div class="flow-title">ご購入の流れ</div>
+            <div class="flow-steps">
+              <div class="flow-step"><div class="flow-num">1</div><div>下のボタンから購入申し込みメールを送信</div></div>
+              <div class="flow-step"><div class="flow-num">2</div><div>ご案内の口座へお振込み（¥10,000）</div></div>
+              <div class="flow-step"><div class="flow-num">3</div><div>入金確認後、アプリURL＋取扱説明書一式をメールでお送りします</div></div>
+            </div>
+          </div>
+          <div class="manual-dl-section">
+            <div class="manual-dl-label">取扱説明書（無料ダウンロード）</div>
+            <div class="manual-dl-btns">
+              <a href="出荷伝票アプリ_かんたん説明書.docx" download class="manual-btn">かんたん説明書</a>
+              <a href="出荷伝票アプリ_取扱説明書.docx" download class="manual-btn">取扱説明書</a>
+              <a href="出荷伝票アプリ_詳しい説明書.docx" download class="manual-btn">詳しい説明書</a>
+            </div>
+          </div>
+          <button class="app-cta" onclick="openPurchase()">購入する</button>
+          <p class="app-cta-sub">購入前に説明書をご確認ください</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONTACT BANNER ── -->
+<div id="contact" class="contact-band">
+  <span class="label" style="text-align:center">Contact</span>
+  <h2 class="h2" style="text-align:center">お問い合わせ</h2>
+  <p class="contact-sub">
+    圃場の見学・アプリのご購入など、<br>お気軽にご連絡ください。
+  </p>
+  <a href="mailto:yoshiyoshiyoshi3@gmail.com" class="contact-btn">Get in Touch</a>
+</div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-main">
+    <div>
+      <div class="footer-brand" id="footerBrand" onclick="adminLogoClick()">
+        Sakai Floric MITSUSE
+      </div>
+      <p class="footer-desc">
+        佐賀県佐賀市三瀬村で花を育てる農家です。<br>
+        季節の花を丹精込めて栽培し、日本各地の<br>
+        花市場へ新鮮な花をお届けしています。
+      </p>
+    </div>
+    <div>
+      <div class="footer-col-title">Menu</div>
+      <ul class="footer-links">
+        <li><a href="#about">About Us</a></li>
+        <li><a href="#videos">Videos</a></li>
+        <li><a href="#photos">Photos</a></li>
+        <li><a href="#app">App</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-col-title">Info</div>
+      <div class="footer-contact-row"><span class="footer-contact-icon">📍</span><span>佐賀市三瀬村</span></div>
+      <div class="footer-contact-row"><span class="footer-contact-icon">🌸</span><span>花の生産・出荷</span></div>
+      <div class="footer-contact-row"><span class="footer-contact-icon">✉</span><span>お問い合わせはメールにて</span></div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2024 Sakai Floric MITSUSE. All rights reserved.</span>
+    <span>MITSUSE, SAGA, JAPAN</span>
+  </div>
+</footer>
+
+<!-- ── PURCHASE MODAL ── -->
+<div class="modal-overlay" id="purchaseModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closePurchase()">✕</button>
+    <div class="modal-title">アプリ ご購入</div>
+    <div class="modal-sub">出荷伝票アプリ — 買い切り</div>
+    <div class="purchase-info">
+      <div class="purchase-price">¥<span id="modalPrice">10,000</span> <span>（税込）</span></div>
+      <div class="purchase-note">買い切り・永続利用 / 取扱説明書付属</div>
+    </div>
+    <!-- 支払い方法タブ -->
+    <div class="pay-tabs">
+      <button class="pay-tab active" onclick="switchPayTab('transfer',this)">銀行振込</button>
+      <button class="pay-tab" onclick="switchPayTab('credit',this)">クレジットカード</button>
+    </div>
+    <!-- 銀行振込パネル -->
+    <div class="pay-panel active" id="payPanelTransfer">
+      <div class="transfer-box">
+        <div class="transfer-title">振込先</div>
+        <div class="transfer-info" id="transferInfo">0000000</div>
+        <div class="transfer-sub" id="transferSub">ご入金確認後、アプリURLをメールでお送りします</div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">お名前 *</label>
+        <input type="text" class="form-input" id="pur_name" placeholder="山田 花子">
+      </div>
+      <div class="form-row">
+        <label class="form-label">農園名・会社名</label>
+        <input type="text" class="form-input" id="pur_company" placeholder="山田花農園">
+      </div>
+      <div class="form-row">
+        <label class="form-label">メールアドレス * （アプリ送付先）</label>
+        <input type="email" class="form-input" id="pur_email" placeholder="your@email.com">
+      </div>
+      <div class="form-row">
+        <label class="form-label">ご質問・備考</label>
+        <textarea class="form-input" id="pur_message" placeholder="例：利用市場は2ヶ所です。スマホ利用予定です。"></textarea>
+      </div>
+      <button class="form-submit" onclick="submitPurchase()">購入申し込みメールを送信</button>
+      <p class="form-note">クリックするとメールアプリが開き、内容が自動入力されます。<br>お振込み後、確認メールをお送りください。</p>
+    </div>
+    <!-- クレジットカードパネル -->
+    <div class="pay-panel" id="payPanelCredit">
+      <div class="credit-section">
+        <p class="credit-note">クレジットカード決済ページへ移動します。<br>決済完了後、登録メールアドレスへアプリ一式をお送りします。</p>
+        <div id="creditBtnWrap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADMIN MODAL ── -->
+<div class="admin-overlay" id="adminModal">
+  <div class="admin-box">
+    <div class="admin-title" style="margin-bottom:16px">管理パネル</div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchAdminTab('videos')">動画</button>
+      <button class="admin-tab" onclick="switchAdminTab('photos')">写真</button>
+      <button class="admin-tab" onclick="switchAdminTab('settings')">設定</button>
+    </div>
+
+    <!-- Videos tab -->
+    <div class="admin-panel active" id="adminTabVideos">
+      <div class="admin-sub">YouTube URL または動画IDを入力して追加します。</div>
+      <div class="admin-section-title">動画を追加</div>
+      <div class="admin-add-row">
+        <input type="text" class="admin-input" id="adminYtInput" placeholder="YouTube URL または 動画ID">
+        <input type="text" class="admin-input" id="adminVidTitle" placeholder="タイトル（省略可）" style="max-width:200px">
+        <button class="admin-add-btn" onclick="adminAddVideo()">追加</button>
+      </div>
+      <div class="admin-section-title">登録済み動画</div>
+      <div id="adminVideoList" class="admin-list"></div>
+    </div>
+
+    <!-- Photos tab -->
+    <div class="admin-panel" id="adminTabPhotos">
+      <div class="admin-sub">画像のURL（Google フォト共有リンク等）を入力して追加します。</div>
+      <div class="admin-section-title">写真を追加</div>
+      <div class="admin-add-row">
+        <input type="text" class="admin-input" id="adminPhotoInput" placeholder="画像URL（https://...）">
+        <input type="text" class="admin-input" id="adminPhotoCaption" placeholder="キャプション（省略可）" style="max-width:200px">
+        <button class="admin-add-btn" onclick="adminAddPhoto()">追加</button>
+      </div>
+      <div class="admin-section-title">登録済み写真</div>
+      <div id="adminPhotoList" class="admin-list"></div>
+    </div>
+
+    <!-- Settings tab -->
+    <div class="admin-panel" id="adminTabSettings">
+      <div class="admin-sub">サイトの設定を変更します。保存後すぐに反映されます。</div>
+      <div class="admin-section-title">Instagram</div>
+      <div class="admin-setting-row">
+        <span class="admin-setting-label">ユーザー名</span>
+        <input type="text" class="admin-input" id="settingInstaHandle" placeholder="@sakai_floric" style="max-width:220px">
+        <span class="admin-setting-label">プロフィールURL</span>
+        <input type="text" class="admin-input" id="settingInstaUrl" placeholder="https://www.instagram.com/...">
+      </div>
+      <div class="admin-section-title" style="margin-top:20px">アプリ販売</div>
+      <div class="admin-setting-row">
+        <span class="admin-setting-label">価格（円）</span>
+        <input type="text" class="admin-input" id="settingAppPrice" placeholder="10000" style="max-width:160px">
+        <span class="admin-setting-label">振込先情報</span>
+        <input type="text" class="admin-input" id="settingTransferInfo" placeholder="〇〇銀行 〇〇支店 普通 1234567">
+        <span class="admin-setting-label">振込備考</span>
+        <input type="text" class="admin-input" id="settingTransferSub" placeholder="ご入金確認後、アプリURLをメールでお送りします">
+        <span class="admin-setting-label">連絡先メール</span>
+        <input type="email" class="admin-input" id="settingContactEmail" placeholder="your@email.com">
+        <span class="admin-setting-label">クレジット決済URL</span>
+        <input type="text" class="admin-input" id="settingCreditUrl" placeholder="https://buy.stripe.com/...（未設定でも可）">
+      </div>
+      <div class="admin-section-title" style="margin-top:20px">Instagram フィード</div>
+      <div class="admin-setting-row">
+        <span class="admin-setting-label" style="width:100%;margin-bottom:6px">フィードウィジェット HTML（Elfsight / LightWidget 等のコードを貼り付け）</span>
+        <textarea class="admin-input" id="settingIgFeedHtml"
+          placeholder="例: &lt;script src=&quot;https://apps.elfsight.com/...&quot;&gt;&lt;/script&gt;&#10;&lt;div class=&quot;elfsight-app-XXXXXX&quot;&gt;&lt;/div&gt;&#10;&#10;空欄のままにするとデフォルト表示になります"
+          style="width:100%;height:88px;resize:vertical;font-family:monospace;font-size:11px;line-height:1.5"></textarea>
+        <span style="font-size:11px;color:rgba(154,136,128,.45);margin-top:5px;display:block">無料で使えるサービス例：elfsight.com / lightwidget.com / snapwidget.com</span>
+      </div>
+      <div class="admin-section-title" style="margin-top:20px">パスワード変更</div>
+      <div class="admin-setting-row">
+        <span class="admin-setting-label">新しいパスワード</span>
+        <input type="password" class="admin-input" id="settingNewPw" placeholder="新しいパスワード" style="max-width:220px">
+      </div>
+      <button class="admin-save-btn" onclick="saveSettings()">設定を保存</button>
+      <div class="admin-saved-msg" id="settingsSavedMsg">✓ 保存しました</div>
+    </div>
+
+    <br>
+    <button class="admin-close-btn" onclick="closeAdmin()">閉じる</button>
+    <p class="admin-pw-hint">フッターのロゴを3回クリックで管理パネルを開けます（初期パスワード: sakaifloric）</p>
+  </div>
+</div>
+
+<script>
+// ── NAV ──
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => nav.classList.toggle('solid', scrollY > 60));
+function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open') }
+
+// ── PETAL ANIMATION ──
+(function(){
+  const colors = ['#f5c8d8','#e8b4c4','#fcd5e0','#d4a0b0','#c8d8f0','#d4e8c0'];
+  const container = document.getElementById('heroPetals');
+  for(let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'petal';
+    const size = 6 + Math.random()*10;
+    p.style.cssText = `
+      width:${size}px;height:${size*0.7}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      left:${Math.random()*100}%;
+      top:${-20}px;
+      opacity:0;
+      animation-duration:${8+Math.random()*12}s;
+      animation-delay:${Math.random()*10}s;
+    `;
+    container.appendChild(p);
+  }
+})();
+
+// ── DATA ──
+function load(key, def) { try { return JSON.parse(localStorage.getItem(key) || 'null') || def } catch(e){ return def } }
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)) }
+
+let videos  = load('sf_videos', []);
+let photos  = load('sf_photos', []);
+let settings = load('sf_settings', {
+  instaHandle: '@SAKAI_FLORIC_MITSUSE',
+  instaUrl: 'https://www.instagram.com/sakai_floric_mitsuse/',
+  appPrice: '10,000',
+  transferInfo: '0000000',
+  transferSub: 'ご入金確認後、アプリURLをメールでお送りします',
+  contactEmail: 'yoshiyoshiyoshi3@gmail.com',
+  creditUrl: '',
+  igFeedHtml: '',
+  pw: 'sakaifloric'
+});
+
+// ── APPLY SETTINGS ──
+function applySettings() {
+  const s = settings;
+  const fmt = s.appPrice.replace(/[¥,]/g,'');
+  const priceStr = Number(fmt).toLocaleString('ja-JP') || s.appPrice;
+  ['modalPrice'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = priceStr;
+  });
+  document.getElementById('transferInfo').textContent = s.transferInfo || '（未設定）';
+  document.getElementById('transferSub').textContent = s.transferSub || '';
+  // Instagram
+  const handle = s.instaHandle || '@sakai_floric';
+  document.getElementById('instaHandleDisplay').textContent = handle;
+  document.getElementById('scInstaHandle').textContent = handle;
+  const url = s.instaUrl || 'https://www.instagram.com/';
+  document.getElementById('instaLink').href = url;
+  const scCard = document.getElementById('scInstaCard');
+  if(scCard) {
+    scCard.href = url;
+    scCard.target = '_blank';
+  }
+  // Instagram feed
+  const igEmbed = document.getElementById('igFeedEmbed');
+  const igPlaceholder = document.getElementById('igFeedPlaceholder');
+  const igPhHandle = document.getElementById('igPhHandle');
+  const igPhLink = document.getElementById('igPhLink');
+  if(igPhHandle) igPhHandle.textContent = s.instaHandle || '@sakai_floric_mitsuse';
+  if(igPhLink) igPhLink.href = s.instaUrl || 'https://www.instagram.com/sakai_floric_mitsuse/';
+  if(igEmbed && igPlaceholder) {
+    if(s.igFeedHtml) {
+      igEmbed.innerHTML = s.igFeedHtml;
+      // 埋め込みスクリプトを再実行
+      igEmbed.querySelectorAll('script').forEach(old => {
+        const n = document.createElement('script');
+        [...old.attributes].forEach(a => n.setAttribute(a.name, a.value));
+        n.textContent = old.textContent;
+        old.parentNode.replaceChild(n, old);
+      });
+      igEmbed.style.display = '';
+      igPlaceholder.style.display = 'none';
+    } else {
+      igEmbed.innerHTML = '';
+      igEmbed.style.display = 'none';
+      igPlaceholder.style.display = '';
+    }
+  }
+  // Credit payment button
+  const creditWrap = document.getElementById('creditBtnWrap');
+  if(creditWrap) {
+    if(s.creditUrl) {
+      creditWrap.innerHTML = `<a href="${s.creditUrl}" class="credit-go-btn" target="_blank" rel="noopener">クレジットカードで支払う →</a>`;
+    } else {
+      creditWrap.innerHTML = `<div class="credit-pending">クレジット決済は準備中です。<br>銀行振込をご利用ください。</div>`;
+    }
+  }
+}
+
+// ── RENDER VIDEOS ──
+function renderVideos() {
+  const grid = document.getElementById('videoGrid');
+  const empty = document.getElementById('videosEmpty');
+  if(!videos.length) { grid.innerHTML=''; empty.style.display='block'; updateScVideos(); return }
+  empty.style.display='none';
+  grid.innerHTML = videos.map(v=>`
+    <div class="video-card">
+      <div class="video-embed">
+        <iframe src="https://www.youtube.com/embed/${v.id}"
+          title="${esc(v.title)}"
+          allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"
+          allowfullscreen loading="lazy"></iframe>
+      </div>${v.title?`<div class="video-title">${esc(v.title)}</div>`:''}
+    </div>`).join('');
+  updateScVideos();
+}
+
+function updateScVideos() {
+  const el = document.getElementById('scVideoVisual');
+  if(!el) return;
+  if(videos.length) {
+    el.innerHTML = `<img class="sc-yt-thumb" src="https://img.youtube.com/vi/${videos[0].id}/mqdefault.jpg" alt="" onerror="this.style.display='none'">`;
+  } else {
+    el.innerHTML = '<div class="sc-play-icon">▶</div>';
+  }
+}
+
+// ── RENDER PHOTOS ──
+function renderPhotos() {
+  const grid = document.getElementById('photoGrid');
+  const empty = document.getElementById('photosEmpty');
+  if(!photos.length) { grid.innerHTML=''; empty.style.display='block'; updateScPhotos(); return }
+  empty.style.display='none';
+  grid.innerHTML = photos.map((p,i)=>`
+    <div class="photo-cell">
+      <img src="${esc(p.url)}" alt="${esc(p.caption)}" loading="lazy"
+        onerror="this.parentElement.style.background='var(--dark4)'">
+    </div>`).join('');
+  updateScPhotos();
+}
+
+function updateScPhotos() {
+  const el = document.getElementById('scPhotoGrid');
+  if(!el) return;
+  const items = photos.slice(0,4);
+  el.innerHTML = Array.from({length:4}, (_,i) => {
+    const p = items[i];
+    return `<div class="sc-photo-cell">${p ? `<img src="${esc(p.url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="sc-photo-placeholder"></div>'}</div>`;
+  }).join('');
+}
+
+// ── ADMIN ──
+let adminClicks = 0, adminTimer = null;
+function adminLogoClick() {
+  adminClicks++;
+  clearTimeout(adminTimer);
+  adminTimer = setTimeout(() => adminClicks=0, 900);
+  if(adminClicks >= 3) {
+    adminClicks=0;
+    const pw = prompt('管理者パスワードを入力してください');
+    if(pw === null) return;
+    if(pw === (settings.pw || 'sakaifloric')) {
+      renderAdminVideoList();
+      renderAdminPhotoList();
+      loadSettingsForm();
+      switchAdminTab('videos');
+      document.getElementById('adminModal').classList.add('open');
+    } else {
+      alert('パスワードが違います');
+    }
+  }
+}
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach((t,i) => {
+    const tabs = ['videos','photos','settings'];
+    t.classList.toggle('active', tabs[i]===tab);
+  });
+  ['adminTabVideos','adminTabPhotos','adminTabSettings'].forEach(id => {
+    const map = {adminTabVideos:'videos',adminTabPhotos:'photos',adminTabSettings:'settings'};
+    document.getElementById(id).classList.toggle('active', map[id]===tab);
+  });
+}
+
+function closeAdmin() { document.getElementById('adminModal').classList.remove('open') }
+
+// Admin Videos
+function extractYtId(url) {
+  url = (url||'').trim();
+  for(const p of [/[?&]v=([A-Za-z0-9_-]{11})/,/youtu\.be\/([A-Za-z0-9_-]{11})/,/embed\/([A-Za-z0-9_-]{11})/,/^([A-Za-z0-9_-]{11})$/])
+    { const m=url.match(p); if(m) return m[1] }
+  return null;
+}
+
+function adminAddVideo() {
+  const id = extractYtId(document.getElementById('adminYtInput').value);
+  if(!id) { alert('有効なYouTube URLを入力してください'); return }
+  if(videos.some(v=>v.id===id)) { alert('すでに登録されています'); return }
+  videos.push({id, title: document.getElementById('adminVidTitle').value.trim()});
+  document.getElementById('adminYtInput').value='';
+  document.getElementById('adminVidTitle').value='';
+  save('sf_videos', videos);
+  renderVideos();
+  renderAdminVideoList();
+}
+
+function renderAdminVideoList() {
+  const el = document.getElementById('adminVideoList');
+  if(!videos.length) { el.innerHTML='<div class="admin-empty">動画はまだ登録されていません</div>'; return }
+  el.innerHTML = videos.map((v,i)=>`
+    <div class="admin-item">
+      <img class="admin-item-thumb" src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg" alt="">
+      <div class="admin-item-info">
+        <input class="admin-item-edit" value="${esc(v.title)}" placeholder="タイトル"
+          oninput="videos[${i}].title=this.value;save('sf_videos',videos);renderVideos()">
+        <div class="admin-item-id">ID: ${v.id}</div>
+      </div>
+      <button class="admin-del" onclick="delVideo(${i})">削除</button>
+    </div>`).join('');
+}
+
+function delVideo(i) {
+  if(!confirm('削除しますか？')) return;
+  videos.splice(i,1);
+  save('sf_videos',videos);
+  renderVideos();
+  renderAdminVideoList();
+}
+
+// Admin Photos
+function adminAddPhoto() {
+  const url = document.getElementById('adminPhotoInput').value.trim();
+  if(!url || !url.startsWith('http')) { alert('有効な画像URLを入力してください'); return }
+  photos.push({url, caption: document.getElementById('adminPhotoCaption').value.trim()});
+  document.getElementById('adminPhotoInput').value='';
+  document.getElementById('adminPhotoCaption').value='';
+  save('sf_photos',photos);
+  renderPhotos();
+  renderAdminPhotoList();
+}
+
+function renderAdminPhotoList() {
+  const el = document.getElementById('adminPhotoList');
+  if(!photos.length) { el.innerHTML='<div class="admin-empty">写真はまだ登録されていません</div>'; return }
+  el.innerHTML = photos.map((p,i)=>`
+    <div class="admin-item">
+      <img class="admin-item-thumb" src="${esc(p.url)}" alt="" onerror="this.style.background='#333'">
+      <div class="admin-item-info">
+        <input class="admin-item-edit" value="${esc(p.caption)}" placeholder="キャプション"
+          oninput="photos[${i}].caption=this.value;save('sf_photos',photos);renderPhotos()">
+        <div class="admin-item-id" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.url)}</div>
+      </div>
+      <button class="admin-del" onclick="delPhoto(${i})">削除</button>
+    </div>`).join('');
+}
+
+function delPhoto(i) {
+  if(!confirm('削除しますか？')) return;
+  photos.splice(i,1);
+  save('sf_photos',photos);
+  renderPhotos();
+  renderAdminPhotoList();
+}
+
+// Admin Settings
+function loadSettingsForm() {
+  document.getElementById('settingInstaHandle').value = settings.instaHandle || '';
+  document.getElementById('settingInstaUrl').value = settings.instaUrl || '';
+  document.getElementById('settingAppPrice').value = (settings.appPrice||'').replace(/,/g,'');
+  document.getElementById('settingTransferInfo').value = settings.transferInfo || '';
+  document.getElementById('settingTransferSub').value = settings.transferSub || '';
+  document.getElementById('settingContactEmail').value = settings.contactEmail || '';
+  document.getElementById('settingCreditUrl').value = settings.creditUrl || '';
+  document.getElementById('settingIgFeedHtml').value = settings.igFeedHtml || '';
+  document.getElementById('settingNewPw').value = '';
+}
+
+function saveSettings() {
+  const newPw = document.getElementById('settingNewPw').value.trim();
+  const raw = document.getElementById('settingAppPrice').value.replace(/[^0-9]/g,'');
+  settings = {
+    ...settings,
+    instaHandle: document.getElementById('settingInstaHandle').value.trim(),
+    instaUrl: document.getElementById('settingInstaUrl').value.trim(),
+    appPrice: raw ? Number(raw).toLocaleString('ja-JP') : settings.appPrice,
+    transferInfo: document.getElementById('settingTransferInfo').value.trim(),
+    transferSub: document.getElementById('settingTransferSub').value.trim(),
+    contactEmail: document.getElementById('settingContactEmail').value.trim(),
+    creditUrl: document.getElementById('settingCreditUrl').value.trim(),
+    igFeedHtml: document.getElementById('settingIgFeedHtml').value.trim(),
+    pw: newPw || settings.pw
+  };
+  save('sf_settings', settings);
+  applySettings();
+  const msg = document.getElementById('settingsSavedMsg');
+  msg.style.display='block';
+  setTimeout(()=>msg.style.display='none', 2200);
+}
+
+// ── PURCHASE MODAL ──
+function openPurchase() { document.getElementById('purchaseModal').classList.add('open') }
+function closePurchase() { document.getElementById('purchaseModal').classList.remove('open') }
+function switchPayTab(tab, btn) {
+  document.querySelectorAll('.pay-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pay-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('payPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+}
+
+function submitPurchase() {
+  const name = document.getElementById('pur_name').value.trim();
+  const email = document.getElementById('pur_email').value.trim();
+  const company = document.getElementById('pur_company').value.trim();
+  const msg = document.getElementById('pur_message').value.trim();
+  if(!name || !email) { alert('お名前とメールアドレスは必須です'); return }
+  const to = settings.contactEmail || '';
+  const subject = encodeURIComponent('出荷伝票アプリ 購入申し込み');
+  const body = encodeURIComponent(
+    `【出荷伝票アプリ 購入申し込み】\n\nお名前: ${name}\n農園名・会社名: ${company||'（未記入）'}\nメールアドレス: ${email}\n\n振込先: ${settings.transferInfo||'0000000'}\n金額: ¥${settings.appPrice||'10,000'}\n\nご質問・備考:\n${msg||'（なし）'}`
+  );
+  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+}
+
+// Close on overlay click
+document.getElementById('purchaseModal').addEventListener('click', e => { if(e.target===e.currentTarget) closePurchase() });
+document.getElementById('adminModal').addEventListener('click', e => { if(e.target===e.currentTarget) closeAdmin() });
+
+// ── UTIL ──
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+// ── INIT ──
+applySettings();
+renderVideos();
+renderPhotos();
+</script>
+</body>
+</html>
