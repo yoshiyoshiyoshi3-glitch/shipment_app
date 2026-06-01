@@ -1,4 +1,4 @@
-const CACHE = 'shipment-20260601-2039';
+const CACHE = 'shipment-20260601-2040';
 const ASSETS = ['./index.html','./manifest.json','./icon-192.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
