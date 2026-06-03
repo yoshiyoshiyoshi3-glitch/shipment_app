@@ -90,11 +90,11 @@
   .quick-voice{background:linear-gradient(135deg,var(--rose-light),var(--primary-light));border:1.5px solid var(--rose);border-radius:14px;padding:14px;margin-bottom:12px;text-align:center}
   .quick-voice p{font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6}
   .quick-voice p strong{color:var(--rose-dark)}
-  .big-mic{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;font-size:28px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(184,120,136,0.45);transition:all 0.2s;touch-action:manipulation}
+  .big-mic{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;font-size:28px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(184,120,136,0.45);transition:all 0.2s;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .big-mic:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858)}
   .big-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);box-shadow:0 4px 16px rgba(212,80,80,0.5);animation:pulse 0.7s infinite}
   /* 画面をスクロールしても付いてくる浮かぶマイク（品目入力画面で元のマイクが隠れたら表示） */
-  .fab-mic{position:fixed;right:18px;bottom:22px;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;border:none;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(184,120,136,0.55);z-index:900;touch-action:manipulation}
+  .fab-mic{position:fixed;right:18px;bottom:22px;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;border:none;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(184,120,136,0.55);z-index:900;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .fab-mic.show{display:inline-flex}
   .fab-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);animation:pulse 0.7s infinite}
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
@@ -258,16 +258,16 @@
   <button class="tab-btn" onclick="showTab('step6')">&#x2464; 精算</button>
   <button class="tab-btn" onclick="showTab('step5')">&#x2465; 設定</button>
 </div>
-<button class="fab-mic" id="fabMic" onclick="quickVoice()" aria-label="音声入力">&#x1F3A4;</button>
+<button class="fab-mic" id="fabMic" aria-label="音声入力（押している間だけ録音）">&#x1F3A4;</button>
 <div id="step1" class="tab-panel active">
   <div class="quick-voice">
     <p>例：<strong>「トルコキキョウ ボヤージュグリーン 30本 2箱」</strong><br>
        2品目目以降は品目名省略可 → 例：<strong>「シグナルグリーン 20本」</strong><br>
        等級なし→<strong>A</strong> / 曲がり・細い等→<strong>外</strong></p>
     <div id="lastNameHint" style="font-size:12px;color:#8b6458;margin-top:5px;font-weight:700;min-height:16px;"></div>
-    <button class="big-mic" id="bigMic" onclick="quickVoice()">&#x1F3A4;</button>
-    <div id="contLabel" class="mic-hint">&#x1F3A4; ボタンを押して1品目を話す</div>
-    <div style="margin-top:6px;font-size:12px;color:#777">1品目ずつ「話す→自動で確定→また押す」の順で入力します</div>
+    <button class="big-mic" id="bigMic">&#x1F3A4;</button>
+    <div id="contLabel" class="mic-hint">&#x1F3A4; ボタンを押している間、話してください</div>
+    <div style="margin-top:6px;font-size:12px;color:#777">ボタンを「押しながら話す→指を離すと確定」の順で入力します（押している間だけ録音）</div>
     <div style="margin-top:8px;font-size:12px;color:#555;display:none">&#x23F1;&#xFE0F; 言葉の間（ま）の待ち時間：
       <select id="parseDelaySel" onchange="setParseDelay(this.value)" style="font-size:13px;padding:4px 6px;flex:none;width:auto;display:inline-block">
         <option value="600">最速（0.6秒）</option>
@@ -1253,10 +1253,12 @@ var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 // シンプル状態管理（continuous=false 方式でモバイル互換）
 var _srOn=false;           // 連続モードON/OFF（旧方式・現在は未使用）
-var _singleShot=false;     // 単発モード（1タップ1品目）ON/OFF
+var _singleShot=false;     // 単発モード（ボタンを押している間だけ聞き取り）ON/OFF
+var _pttHeld=false;        // マイクボタンを押している（指を離していない）間 true
 var _ssBuffer='';          // 単発モードで聞き取った文を一時ためる
 var _ssGraceTimer=null;    // 単発モードの「言い終わり待ち」タイマー
 var SS_GRACE=3000;         // 言い終わってから確定するまでの猶予（ミリ秒）
+var PTT_RELEASE_GRACE=1200;// 指を離してから取りこぼしを拾って確定するまでの待ち（ミリ秒）
 var _srRec=null;           // 現在のSRインスタンス
 var _srGeneration=0;       // 世代番号（古いコールバック破棄用）
 var _srRestartTimer=null;  // 再起動タイマー
@@ -1273,7 +1275,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260603-1758';
+var APP_VERSION='20260603-1806';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1457,20 +1459,20 @@ function _srStart(){
         var cb=pendingCb;pendingCb=null;_srOn=false;
         stopRecUI();cb(text);
       } else if(_singleShot){
-        // 単発モード：言い終わってもすぐ確定せず、少し待つ（猶予 SS_GRACE）。
-        // 途中で息継ぎしても、続きを話せば同じ品目に追記される＝途中で切れない。
+        // 押している間に聞き取った文をためる。指を離していなければ自動確定はしない
+        // （押している限りずっと聞き続ける）。離した後（_pttHeld=false）だけ猶予タイマーで確定。
         _ssBuffer=(_ssBuffer?_ssBuffer+' ':'')+text;
         clearTimeout(_ssGraceTimer);
-        _ssGraceTimer=setTimeout(_commitSingleShot,SS_GRACE);
-        setStatus('🎤「'+_ssBuffer+'」（続けて話せます。少し待つと確定します）','recording');
+        if(!_pttHeld){_ssGraceTimer=setTimeout(_commitSingleShot,PTT_RELEASE_GRACE);}
+        setStatus('🎤「'+_ssBuffer+'」','recording');
       } else if(_srOn){
         _ingestFinalText(text);
       }
     }
     if(interim){
       if(_singleShot){
-        // 話している間は確定を先送り（猶予を延長）。buffer が空のときは初回発話中なのでタイマー不要。
-        if(_ssBuffer){clearTimeout(_ssGraceTimer);_ssGraceTimer=setTimeout(_commitSingleShot,SS_GRACE);}
+        // 押している間は自動確定しない。離した後だけ、話し続けている間は確定を先送り（延長）。
+        if(!_pttHeld&&_ssBuffer){clearTimeout(_ssGraceTimer);_ssGraceTimer=setTimeout(_commitSingleShot,PTT_RELEASE_GRACE);}
         setStatus('🎤 聞き取り中…「'+(_ssBuffer?_ssBuffer+' ':'')+interim+'」','recording');
       }
       else{
@@ -1520,10 +1522,9 @@ function _srStart(){
     if(_srGeneration!==myGen)return;
     _srRec=null;
     if(_srPaused)return; // バックグラウンド中は再起動しない
-    if(_srOn||pendingCb||_singleShot){
-      // 自動再起動。単発モードでは「まだ品目を言っていない（_singleShot=true のまま）」間だけ
-      // 聞き取りを継続する。1品目を取り込んだ時点で _singleShot=false になり再起動しない＝
-      // 発話中にマイクが切れて取りこぼす隙間が原理的に発生しない。
+    if(_srOn||pendingCb||(_singleShot&&_pttHeld)){
+      // 自動再起動。単発（押している間）モードでは「ボタンを押し続けている」間だけ
+      // 聞き取りを継続する。指を離す（_pttHeld=false）と再起動せず、たまった文を確定する。
       var _restartDelay=(isMobile?250:120);
       if(_srLastError==='network'||_srLastError==='service-not-allowed'||_srLastError==='audio-capture'){
         _restartDelay=3000;
@@ -1531,7 +1532,7 @@ function _srStart(){
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
         _srRestartTimer=null;
-        if(!_srPaused&&(_srOn||pendingCb||_singleShot))_srStart();
+        if(!_srPaused&&(_srOn||pendingCb||(_singleShot&&_pttHeld)))_srStart();
       },_restartDelay);
     } else {
       stopRecUI();
@@ -1543,11 +1544,11 @@ function _srStart(){
   }catch(e){
     console.warn('SR start() failed:',e);
     _srRec=null;
-    if(_srOn||pendingCb||_singleShot){
+    if(_srOn||pendingCb||(_singleShot&&_pttHeld)){
       clearTimeout(_srRestartTimer);
       _srRestartTimer=setTimeout(function(){
         _srRestartTimer=null;
-        if(_srOn||pendingCb||_singleShot)_srStart();
+        if(_srOn||pendingCb||(_singleShot&&_pttHeld))_srStart();
       },isMobile?1000:500);
     }
   }
@@ -1559,7 +1560,7 @@ document.addEventListener('visibilitychange',function(){
     _srPaused=true;
     clearTimeout(_srRestartTimer);_srRestartTimer=null;
     if(_srRec){try{_srRec.abort();}catch(ex){}}_srRec=null;
-    if(_singleShot){_singleShot=false;clearTimeout(_ssGraceTimer);_ssGraceTimer=null;_ssBuffer='';stopRecUI();} // 単発待機中なら解除
+    if(_singleShot){_singleShot=false;_pttHeld=false;clearTimeout(_ssGraceTimer);_ssGraceTimer=null;_ssBuffer='';stopRecUI();} // 押している間モードなら解除
     _releaseWakeLock();
   } else {
     // フォアグラウンドへ：SR再開（800ms 待機後）＋ スリープ防止を再取得
@@ -1699,7 +1700,7 @@ function stopRecUI(){
     var fab=document.getElementById('fabMic');
     if(fab){fab.classList.remove('recording');fab.textContent='🎤';}
     var lbl=document.getElementById('contLabel');
-    if(lbl)lbl.textContent='🎤 ボタンを押して1品目を話す';
+    if(lbl)lbl.textContent='🎤 ボタンを押している間、話してください';
   }
 }
 // 浮かぶマイクの表示制御：品目入力画面で、元のマイクが画面外のときだけ出す。
@@ -1758,7 +1759,7 @@ function _commitSingleShot(){
   clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
   var text=(_ssBuffer||'').trim();
   _ssBuffer='';
-  _singleShot=false;
+  _singleShot=false;_pttHeld=false;
   clearTimeout(_srRestartTimer);_srRestartTimer=null;
   if(_srRec){try{_srRec.stop();}catch(ex){}_srRec=null;}
   stopRecUI();
@@ -1768,34 +1769,54 @@ function _commitSingleShot(){
   updateLastNameHint();
   setStatus('「'+text+'」を追加しました ✓　次の品目は🎤ボタンを押して話してください','ok');
 }
-function quickVoice(){
+// ── 押している間だけ聞き取る（プッシュtrToーク）─────────────────────────
+// ボタンを押している間だけマイクON。指を離すと聞き取った内容を確定する。
+function startPushToTalk(){
   if(!SR){setStatus('音声入力はこのブラウザで使えません','error');return;}
-  if(_singleShot){
-    // 聞き取り中にもう一度押したら：話した内容があればすぐ確定、なければ中止。
-    if((_ssBuffer||'').trim()){_commitSingleShot();return;}
-    _singleShot=false;
-    clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
-    clearTimeout(_srRestartTimer);_srRestartTimer=null;
-    if(_srRec){try{_srRec.abort();}catch(e){}}_srRec=null;
-    stopRecUI();
-    setStatus('聞き取りを止めました。🎤ボタンを押すと再開します','');
-    return;
-  }
-  // 旧連続モードが動いていたら止める
+  if(_singleShot)return; // すでに聞き取り中
+  // 旧連続モード・コールバックモードが動いていたら止める
   _srOn=false;pendingCb=null;
-  // 開始
   _acquireWakeLock();
   _srLastFinal='';_srLastFinalTime=0; // 直前確定との重複判定をリセット
   _ssBuffer='';clearTimeout(_ssGraceTimer);_ssGraceTimer=null;
-  _singleShot=true;
+  _singleShot=true;_pttHeld=true;
   var btn=document.getElementById('bigMic');
-  if(btn){btn.classList.add('recording');btn.textContent='⏹';}
+  if(btn){btn.classList.add('recording');btn.textContent='●';}
   var fab=document.getElementById('fabMic');
-  if(fab){fab.classList.add('recording');fab.textContent='⏹';}
-  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='⏹ 聞き取り中…（話し終わったらタップで確定）';
-  setStatus('🎤 1品目を話してください（品目・品種・本数・箱数）','recording');
+  if(fab){fab.classList.add('recording');fab.textContent='●';}
+  var lbl=document.getElementById('contLabel');if(lbl)lbl.textContent='● 聞き取り中…（指を離すと確定）';
+  setStatus('🎤 押している間に話してください（指を離すと確定）','recording');
   _srStart();
 }
+function stopPushToTalk(){
+  if(!_pttHeld&&!_singleShot)return;
+  _pttHeld=false;
+  // 指を離したら、いま聞き取り中の音声を確定させる（stopで最後の結果が届く）。
+  if(_srRec){try{_srRec.stop();}catch(e){}}
+  // 取りこぼし（離した直後に届く最後の単語）を少し待ってから確定。
+  clearTimeout(_ssGraceTimer);
+  _ssGraceTimer=setTimeout(_commitSingleShot,PTT_RELEASE_GRACE);
+  setStatus('確定しています…','recording');
+}
+// マイクボタンに「押している間だけ録音」の操作を割り当てる（指/マウス共通のポインタイベント）。
+function _wirePushToTalk(btn){
+  if(!btn||btn._pttWired)return;
+  btn._pttWired=true;
+  btn.addEventListener('pointerdown',function(e){
+    e.preventDefault();
+    try{btn.setPointerCapture(e.pointerId);}catch(_){}
+    startPushToTalk();
+  });
+  var _release=function(e){if(e&&e.preventDefault)e.preventDefault();stopPushToTalk();};
+  btn.addEventListener('pointerup',_release);
+  btn.addEventListener('pointercancel',_release);
+  // 長押しのコンテキストメニュー/選択を抑止
+  btn.addEventListener('contextmenu',function(e){e.preventDefault();});
+}
+(function(){
+  _wirePushToTalk(document.getElementById('bigMic'));
+  _wirePushToTalk(document.getElementById('fabMic'));
+})();
 
 // ── パース ────────────────────────────────────────────────────────────
 function parseAndAddItem(text){
