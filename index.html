@@ -513,13 +513,23 @@
   <div class="card" style="margin-top:12px">
     <div class="section-title">&#x1F3EA; 市場設定（コード・メール）</div>
     <div style="font-size:12px;color:var(--lavender);background:var(--lavender-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(152,120,168,0.25)">
-      &#x2709; <strong>メールアドレス</strong>欄に各市場担当者のアドレスを入力すると、伝票送信時に自動でメーラーが開きます
+      &#x2709; <strong>メールアドレス</strong>欄に各市場担当者のアドレスを入力すると、伝票送信時に自動でメーラーが開きます<br>
+      &#x1F4E0; <strong>FAX番号</strong>欄に各市場のFAX番号を入力すると、伝票出力で「FAXで送る」ボタンが使えます（下の「FAXサービスのドメイン」も入力してください）
     </div>
     <div style="overflow-x:auto">
-      <table class="stat-table" id="marketSettingTable" style="min-width:400px">
-        <thead><tr><th>市場名</th><th>生産者コード</th><th>メールアドレス</th><th></th></tr></thead>
+      <table class="stat-table" id="marketSettingTable" style="min-width:520px">
+        <thead><tr><th>市場名</th><th>生産者コード</th><th>メールアドレス</th><th>FAX番号</th><th></th></tr></thead>
         <tbody id="marketSettingBody"></tbody>
       </table>
+    </div>
+    <div style="margin-top:10px;background:#fdf8f5;border:1px solid #e0cfc8;border-radius:8px;padding:10px 12px">
+      <label class="settings-label" style="display:block;margin-bottom:4px">&#x1F4E0; FAXサービスのドメイン（インターネットFAX）</label>
+      <input type="text" id="fax_gateway" class="settings-input" placeholder="例：efaxsend.com">
+      <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
+        ご契約のインターネットFAXサービスの送信用ドメインを入力します。<br>
+        「FAXで送る」を押すと <strong>FAX番号＠このドメイン</strong> 宛にメールが作成され、FAXとして届きます。<br>
+        （例：eFax→efaxsend.com など。サービスにより異なります）
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-export" onclick="addMarketRow()">&#x2795; 市場を追加</button>
@@ -797,9 +807,13 @@ function saveMarketSettings(){
   rows.forEach(function(tr){
     var name=tr.querySelector('.ms-name').value.trim();
     if(!name)return;
-    settings.push({name:name,code:tr.querySelector('.ms-code').value.trim(),email:tr.querySelector('.ms-email').value.trim()});
+    var faxEl=tr.querySelector('.ms-fax');
+    settings.push({name:name,code:tr.querySelector('.ms-code').value.trim(),email:tr.querySelector('.ms-email').value.trim(),fax:faxEl?faxEl.value.trim():''});
   });
   localStorage.setItem('marketSettings',JSON.stringify(settings));
+  // FAXサービスのドメイン（インターネットFAX）を保存
+  var gwEl=document.getElementById('fax_gateway');
+  if(gwEl)localStorage.setItem('faxGateway',gwEl.value.trim());
   MARKETS=settings.map(function(s){return s.name;});
   var em={};
   var oldEm=null;try{oldEm=JSON.parse(localStorage.getItem('emailSettings'))||{};}catch(e){oldEm={};}
@@ -831,6 +845,24 @@ function getProducerCode(marketName){
   if(!ms)return'';
   var found=ms.filter(function(s){return s.name===marketName;});
   return found.length?found[0].code:'';
+}
+// 市場のFAX番号を取得
+function getMarketFax(marketName){
+  var ms=loadMarketSettings();
+  if(!ms)return'';
+  var found=ms.filter(function(s){return s.name===marketName;});
+  return found.length?(found[0].fax||''):'';
+}
+// インターネットFAXサービスのドメインを取得（例：efaxsend.com）
+function loadFaxGateway(){
+  try{return (localStorage.getItem('faxGateway')||'').trim();}catch(e){return '';}
+}
+// FAX番号＋ドメインから送信先メールアドレスを組み立てる（番号は数字のみに整形）
+function buildFaxAddress(fax){
+  var gw=loadFaxGateway();
+  var digits=(fax||'').replace(/[^\d]/g,'');
+  if(!digits||!gw)return '';
+  return digits+'@'+gw;
 }
 function initMarkets(){
   var ms=loadMarketSettings();
@@ -1241,7 +1273,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260601-2040';
+var APP_VERSION='20260603-1758';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2938,6 +2970,35 @@ function sendMarketEmail(market,mi){
     setStatus('CSVをダウンロードしました（⑤設定でメールアドレスを登録するとメーラーも自動で開きます）','ok');
   }
 }
+// インターネットFAX（メール経由）で伝票を送る。
+// FAX番号＠FAXサービスのドメイン 宛にメーラーを開く。
+function sendMarketFax(market,mi){
+  var fax=getMarketFax(market);
+  var gw=loadFaxGateway();
+  if(!fax){setStatus(market+'のFAX番号が未登録です（⑤設定の市場設定で登録してください）','error');return;}
+  if(!gw){setStatus('FAXサービスのドメインが未登録です（⑤設定の「FAXサービスのドメイン」を入力してください）','error');return;}
+  var to=buildFaxAddress(fax);
+  if(!to){setStatus('FAX送信先を組み立てられませんでした。FAX番号とドメインをご確認ください','error');return;}
+  var date=document.getElementById('shipDate').value;
+  var producer=document.getElementById('producerName').value;
+  var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
+  if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
+  var pinfo=loadProducerInfo();
+  var pcode=getProducerCode(market);
+  var subject='【出荷伝票】'+market+' '+date;
+  var bodyLines=['出荷伝票','市場名：'+market,'出荷日：'+date,'生産者：'+producer];
+  if(pinfo.addr)bodyLines.push('住所：'+pinfo.addr);
+  if(pinfo.tel)bodyLines.push('電話：'+pinfo.tel);
+  if(pcode)bodyLines.push('生産者コード：'+pcode);
+  bodyLines.push('','■ 品目一覧');
+  items.forEach(function(it){
+    bodyLines.push(it.name+(it.variety?' '+it.variety:'')+' '+it.grade+' '+(it.size?it.size+'cm ':'')+it.marketBoxes[mi]+'箱'+(it.perBox>0?' '+it.perBox+it.stemUnit+'/箱':'')+(it.note?' 備考:'+it.note:''));
+  });
+  var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
+  var body=bodyLines.join('\n');
+  window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  setStatus(market+'へFAX送信用メール（'+to+'）を開いています。そのまま送信してください','ok');
+}
 function sendAllMarketsEmail(){
   var date=document.getElementById('shipDate').value;
   var producer=document.getElementById('producerName').value;
@@ -3177,7 +3238,7 @@ function buildMarketSettingTable(){
   var settings=ms||MARKETS.map(function(m){
     var em=null;
     try{var es=JSON.parse(localStorage.getItem('emailSettings')||'{}');em=es['em_'+MARKETS.indexOf(m)]||'';}catch(e){em='';}
-    return{name:m,code:'',email:em||''};
+    return{name:m,code:'',email:em||'',fax:''};
   });
   tbody.innerHTML='';
   settings.forEach(function(s,i){
@@ -3185,9 +3246,13 @@ function buildMarketSettingTable(){
     tr.innerHTML='<td><input class="ms-name settings-input" style="min-width:100px" value="'+escHtml(s.name||'')+'"></td>'+
       '<td><input class="ms-code settings-input" style="min-width:80px" value="'+escHtml(s.code||'')+'"></td>'+
       '<td><input class="ms-email settings-input" style="min-width:160px" type="email" value="'+escHtml(s.email||'')+'"></td>'+
+      '<td><input class="ms-fax settings-input" style="min-width:120px" type="tel" placeholder="例：092-123-4567" value="'+escHtml(s.fax||'')+'"></td>'+
       '<td><button class="mkt-del-btn" onclick="this.parentElement.parentElement.remove()">削除</button></td>';
     tbody.appendChild(tr);
   });
+  // FAXサービスのドメインを反映
+  var gwEl=document.getElementById('fax_gateway');
+  if(gwEl)gwEl.value=loadFaxGateway();
 }
 function addMarketRow(){
   var tbody=document.getElementById('marketSettingBody');
@@ -3196,6 +3261,7 @@ function addMarketRow(){
   tr.innerHTML='<td><input class="ms-name settings-input" style="min-width:100px" placeholder="市場名"></td>'+
     '<td><input class="ms-code settings-input" style="min-width:80px" placeholder="コード"></td>'+
     '<td><input class="ms-email settings-input" style="min-width:160px" type="email" placeholder="メール"></td>'+
+    '<td><input class="ms-fax settings-input" style="min-width:120px" type="tel" placeholder="例：092-123-4567"></td>'+
     '<td><button class="mkt-del-btn" onclick="this.parentElement.parentElement.remove()">削除</button></td>';
   tbody.appendChild(tr);
 }
@@ -3518,11 +3584,14 @@ function showSendPanel(distData,date,producer){
     var box=document.createElement('div');
     box.style.cssText='border:1.5px solid #e0cfc8;border-radius:8px;padding:10px 12px;background:#fdf8f5';
     var note=(isPC&&!to)?'（メール宛先は⑤設定で登録できます）':'';
+    var hasFax=!!getMarketFax(market);
+    var faxBtn=hasFax?'<button style="flex:1;min-width:78px;font-size:13px;padding:9px 6px;background:#6d8a54;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600" onclick="sendMarketFax(\''+market+'\','+mi+')">&#x1F4E0; FAXで送る</button>':'';
     box.innerHTML='<div style="font-weight:700;color:#8b6458;margin-bottom:8px">&#x1F4CB; '+market+'<span style="font-size:11px;font-weight:400;color:#9a8880"> '+note+'</span></div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
         '<button class="btn-mail" style="flex:1;min-width:78px;font-size:13px;padding:9px 6px" onclick="sendMarketEmail(\''+market+'\','+mi+')">&#x2709; メール</button>'+
         '<button style="flex:1;min-width:78px;font-size:13px;padding:9px 6px;background:#d93025;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600" onclick="shareViaGmail(\''+market+'\','+mi+')">&#x2709; Gmail</button>'+
         '<button style="flex:1;min-width:78px;font-size:13px;padding:9px 6px;background:#06c755;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600" onclick="shareViaLine(\''+market+'\','+mi+')">LINE</button>'+
+        faxBtn+
       '</div>';
     list.appendChild(box);
   });
@@ -4413,7 +4482,7 @@ function drawChart(type,settlements){
   });
 }
 // ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
-var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig'];
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxGateway'];
 var _gistToken='';
 var _gistId='';
 
