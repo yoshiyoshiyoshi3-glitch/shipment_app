@@ -1274,7 +1274,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260603-1819';
+var APP_VERSION='20260604-1636';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2638,7 +2638,6 @@ function buildMarketSummaries(){
         '<button class="btn-label" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="printAllLabels()">&#x1F3F7; 全市場ラベル印刷</button>'+
         '<button style="flex:1;min-width:110px;font-size:13px;padding:9px 10px;background:#6b4a3a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;min-height:48px;touch-action:manipulation" onclick="printAllMarketsSlips()">&#x1F5A8; 全市場伝票<br>まとめて印刷</button>'+
         '<button class="btn-pdf" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsPDF()">&#x1F4C4; 全市場PDF</button>'+
-        '<button class="btn-mail" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="sendAllMarketsEmail()">&#x2709; 全市場メール</button>'+
       '</div>';
     container.appendChild(allDiv);
   }
@@ -2658,9 +2657,6 @@ function buildMarketSummaries(){
         '<button class="btn-excel" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketExcel(\''+market+'\','+mi+')">&#x1F4D7; Excel</button>'+
         '<button class="btn-label" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="printLabels(\''+market+'\','+mi+')">&#x1F3F7; ラベル印刷</button>'+
         '<button class="btn-pdf" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketPDF(\''+market+'\','+mi+')">&#x1F4C4; PDF</button>'+
-        '<button class="btn-mail" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="sendMarketEmail(\''+market+'\','+mi+')">&#x2709; メール</button>'+
-        '<button style="flex:1;min-width:90px;font-size:13px;padding:9px 10px;background:#d93025;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600" onclick="shareViaGmail(\''+market+'\','+mi+')">&#x2709; Gmail</button>'+
-        '<button style="flex:1;min-width:90px;font-size:13px;padding:9px 10px;background:#06c755;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600" onclick="shareViaLine(\''+market+'\','+mi+')">LINE</button>'+
       '</div>';
     container.appendChild(div);
   });
