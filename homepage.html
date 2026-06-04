@@ -127,7 +127,14 @@ nav.solid{background:rgba(255,255,255,.97);backdrop-filter:blur(14px);padding:13
 .photos-empty{text-align:center;color:var(--muted);padding:52px 20px;border:1px dashed rgba(245,240,235,.1);border-radius:3px;margin-top:48px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px}
 
 /* ── IG FEED PLACEHOLDER ── */
-.ig-feed-embed{width:100%;min-height:100px}
+.ig-feed-embed{width:100%}
+.ig-feed-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:0}
+.ig-feed-cell{aspect-ratio:1;overflow:hidden;background:var(--dark3);position:relative;display:block}
+.ig-feed-cell img{width:100%;height:100%;object-fit:cover;transition:opacity .3s,transform .4s;opacity:.9}
+.ig-feed-cell:hover img{opacity:1;transform:scale(1.04)}
+.ig-feed-cell-video::after{content:'▶';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,.85);font-size:20px;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+.ig-feed-footer{text-align:center;margin-top:28px}
+.ig-feed-loading{text-align:center;padding:52px 20px;color:var(--muted);font-size:13px;letter-spacing:.1em}
 .ig-placeholder{padding:52px 20px 44px;text-align:center}
 .ig-ph-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:520px;margin:0 auto 32px;border-radius:3px;overflow:hidden}
 .ig-ph-cell{aspect-ratio:1;background:var(--dark3);background-image:linear-gradient(135deg,rgba(160,120,150,.13),rgba(90,70,120,.08))}
@@ -857,13 +864,15 @@ footer::after{
         <span class="admin-setting-label">クレジット決済URL</span>
         <input type="text" class="admin-input" id="settingCreditUrl" placeholder="https://buy.stripe.com/...（未設定でも可）">
       </div>
-      <div class="admin-section-title" style="margin-top:20px">Instagram フィード</div>
+      <div class="admin-section-title" style="margin-top:20px">Instagram フィード連携（Behold.so）</div>
       <div class="admin-setting-row">
-        <span class="admin-setting-label" style="width:100%;margin-bottom:6px">フィードウィジェット HTML（Elfsight / LightWidget 等のコードを貼り付け）</span>
-        <textarea class="admin-input" id="settingIgFeedHtml"
-          placeholder="例: &lt;script src=&quot;https://apps.elfsight.com/...&quot;&gt;&lt;/script&gt;&#10;&lt;div class=&quot;elfsight-app-XXXXXX&quot;&gt;&lt;/div&gt;&#10;&#10;空欄のままにするとデフォルト表示になります"
-          style="width:100%;height:88px;resize:vertical;font-family:monospace;font-size:11px;line-height:1.5"></textarea>
-        <span style="font-size:11px;color:rgba(154,136,128,.45);margin-top:5px;display:block">無料で使えるサービス例：elfsight.com / lightwidget.com / snapwidget.com</span>
+        <span class="admin-setting-label" style="width:100%;margin-bottom:6px">Behold Feed ID</span>
+        <input type="text" class="admin-input" id="settingIgFeedId" placeholder="例: AbCdEfGhIjKlMnOpQrSt" style="max-width:340px">
+        <span style="font-size:11px;color:rgba(154,136,128,.5);margin-top:6px;display:block;line-height:1.7">
+          ① <a href="https://behold.so" target="_blank" style="color:var(--rose)">behold.so</a> で無料登録
+          ② 「Create Feed」→ @sakai_floric_mitsuse を登録
+          ③ 表示された Feed ID をここに貼り付けて保存
+        </span>
       </div>
       <div class="admin-section-title" style="margin-top:20px">パスワード変更</div>
       <div class="admin-setting-row">
@@ -921,7 +930,7 @@ let settings = load('sf_settings', {
   transferSub: 'ご入金確認後、アプリURLをメールでお送りします',
   contactEmail: 'yoshiyoshiyoshi3@gmail.com',
   creditUrl: '',
-  igFeedHtml: '',
+  igFeedId: '',
   pw: 'sakaifloric'
 });
 
@@ -947,31 +956,13 @@ function applySettings() {
     scCard.href = url;
     scCard.target = '_blank';
   }
-  // Instagram feed
-  const igEmbed = document.getElementById('igFeedEmbed');
-  const igPlaceholder = document.getElementById('igFeedPlaceholder');
+  // Instagram feed placeholder handle/link
   const igPhHandle = document.getElementById('igPhHandle');
   const igPhLink = document.getElementById('igPhLink');
   if(igPhHandle) igPhHandle.textContent = s.instaHandle || '@sakai_floric_mitsuse';
   if(igPhLink) igPhLink.href = s.instaUrl || 'https://www.instagram.com/sakai_floric_mitsuse/';
-  if(igEmbed && igPlaceholder) {
-    if(s.igFeedHtml) {
-      igEmbed.innerHTML = s.igFeedHtml;
-      // 埋め込みスクリプトを再実行
-      igEmbed.querySelectorAll('script').forEach(old => {
-        const n = document.createElement('script');
-        [...old.attributes].forEach(a => n.setAttribute(a.name, a.value));
-        n.textContent = old.textContent;
-        old.parentNode.replaceChild(n, old);
-      });
-      igEmbed.style.display = '';
-      igPlaceholder.style.display = 'none';
-    } else {
-      igEmbed.innerHTML = '';
-      igEmbed.style.display = 'none';
-      igPlaceholder.style.display = '';
-    }
-  }
+  // Instagram feed (Behold.so)
+  loadIgFeed();
   // Credit payment button
   const creditWrap = document.getElementById('creditBtnWrap');
   if(creditWrap) {
@@ -1008,6 +999,49 @@ function updateScVideos() {
     el.innerHTML = `<img class="sc-yt-thumb" src="https://img.youtube.com/vi/${videos[0].id}/mqdefault.jpg" alt="" onerror="this.style.display='none'">`;
   } else {
     el.innerHTML = '<div class="sc-play-icon">▶</div>';
+  }
+}
+
+// ── INSTAGRAM FEED (Behold.so) ──
+async function loadIgFeed() {
+  const feedId = settings.igFeedId;
+  const embed  = document.getElementById('igFeedEmbed');
+  const ph     = document.getElementById('igFeedPlaceholder');
+  if (!embed || !ph) return;
+  if (!feedId) {
+    embed.style.display = 'none';
+    ph.style.display = '';
+    return;
+  }
+  embed.innerHTML = '<div class="ig-feed-loading">読み込み中…</div>';
+  embed.style.display = '';
+  ph.style.display = 'none';
+  try {
+    const resp = await fetch('https://feeds.behold.so/' + feedId);
+    if (!resp.ok) throw new Error('fetch error');
+    const posts = await resp.json();
+    if (!Array.isArray(posts) || !posts.length) throw new Error('empty');
+    const instaUrl = settings.instaUrl || 'https://www.instagram.com/sakai_floric_mitsuse/';
+    const handle   = settings.instaHandle || '@sakai_floric_mitsuse';
+    embed.innerHTML =
+      '<div class="ig-feed-grid">' +
+      posts.slice(0, 12).map(p => {
+        const isVideo = p.mediaType === 'VIDEO';
+        const thumb   = (p.sizes && p.sizes.medium && p.sizes.medium.mediaUrl) || p.mediaUrl || p.thumbnailUrl || '';
+        const caption = (p.caption || '').replace(/"/g, '&quot;');
+        return '<a class="ig-feed-cell' + (isVideo ? ' ig-feed-cell-video' : '') + '"' +
+               ' href="' + esc(p.permalink || instaUrl) + '" target="_blank" rel="noopener">' +
+               '<img src="' + esc(thumb) + '" alt="' + caption + '" loading="lazy"></a>';
+      }).join('') +
+      '</div>' +
+      '<div class="ig-feed-footer">' +
+        '<a href="' + esc(instaUrl) + '" class="ig-ph-btn" target="_blank" rel="noopener">' +
+        esc(handle) + ' をフォローする</a>' +
+      '</div>';
+  } catch(e) {
+    embed.style.display = 'none';
+    ph.style.display = '';
+    console.warn('Instagram feed load failed:', e);
   }
 }
 
@@ -1157,7 +1191,7 @@ function loadSettingsForm() {
   document.getElementById('settingTransferSub').value = settings.transferSub || '';
   document.getElementById('settingContactEmail').value = settings.contactEmail || '';
   document.getElementById('settingCreditUrl').value = settings.creditUrl || '';
-  document.getElementById('settingIgFeedHtml').value = settings.igFeedHtml || '';
+  document.getElementById('settingIgFeedId').value = settings.igFeedId || '';
   document.getElementById('settingNewPw').value = '';
 }
 
@@ -1173,7 +1207,7 @@ function saveSettings() {
     transferSub: document.getElementById('settingTransferSub').value.trim(),
     contactEmail: document.getElementById('settingContactEmail').value.trim(),
     creditUrl: document.getElementById('settingCreditUrl').value.trim(),
-    igFeedHtml: document.getElementById('settingIgFeedHtml').value.trim(),
+    igFeedId: document.getElementById('settingIgFeedId').value.trim(),
     pw: newPw || settings.pw
   };
   save('sf_settings', settings);
