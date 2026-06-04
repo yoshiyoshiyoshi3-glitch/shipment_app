@@ -1274,7 +1274,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260604-1636';
+var APP_VERSION='20260604-1657';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3887,24 +3887,26 @@ function restoreHistRecord(id){
   var cont=document.getElementById('itemsContainer');
   if(cont)cont.innerHTML='';
   (r.items||[]).forEach(function(it){
-    var newId=addItem({
+    // 合計箱数を求める（totalBoxes優先。古いデータは市場別箱数を合計）
+    var totalBoxes=it.totalBoxes;
+    if(totalBoxes==null){
+      if(it.markets&&it.markets.length){
+        totalBoxes=it.markets.reduce(function(a,m){return a+(parseInt(m.boxes)||0);},0);
+      } else if(it.marketBoxes&&it.marketBoxes.length){
+        totalBoxes=it.marketBoxes.reduce(function(a,b){return a+(parseInt(b)||0);},0);
+      }
+    }
+    var stemUnit=it.stemUnit||'本';
+    addItem({
       name:  it.name||'',
       variety: it.variety||'',
       grade: it.grade||'A',
       rings: it.rings||'',
       size:  it.size||'',
-      note:  it.note||''
+      note:  it.note||'',
+      count: it.perBox?(it.perBox+stemUnit):'',
+      boxes: totalBoxes?(totalBoxes+'箱'):''
     });
-    // 市場別箱数を復元（marketBoxesがある場合）、なければtotalBoxesを最初の市場に
-    if(it.marketBoxes&&it.marketBoxes.length){
-      it.marketBoxes.forEach(function(b,mi){
-        var el=document.getElementById('b_'+newId+'_'+mi);
-        if(el&&b)el.value=b;
-      });
-    } else {
-      var el=document.getElementById('b_'+newId+'_0');
-      if(el&&it.totalBoxes)el.value=it.totalBoxes;
-    }
     updateItemSummaries&&updateItemSummaries();
   });
   showTab('step1');
