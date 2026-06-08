@@ -1274,7 +1274,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260604-1726';
+var APP_VERSION='20260608-2155';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3132,11 +3132,11 @@ function buildLabelPageHTML(allLabels){
     // @pageは最上位に置く（@media print内ではChromeで無視される場合あり）
     '@page{size:A4 portrait;margin:0}'+
     '*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;background:white}'+
-    '@media screen{body{padding:16px;background:#f0f0f0}.page{background:white;width:210mm;margin:0 auto 16px;padding:8mm;box-shadow:0 2px 8px rgba(0,0,0,.15)}}'+
+    '@media screen{body{padding:16px;background:#f0f0f0}.page{background:white;width:210mm;height:297mm;margin:0 auto 16px;padding:8mm;box-shadow:0 2px 8px rgba(0,0,0,.15)}}'+
     // 印刷時: A4ぴったり(297mm×210mm)にoverflow:hiddenで確実に1ページに収める
     '@media print{body{padding:0;margin:0}.page{width:210mm;height:297mm;padding:8mm;page-break-after:always;overflow:hidden}.no-print{display:none!important}}'+
     // 画面プレビュー用の高さ(8mmパディング込みで@pageと同じスケール)
-    '.page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);gap:2mm;height:281mm}'+
+    '.page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);gap:2mm}'+
     // font-size は em ベース（.label の font-size を JS で縮小して全体を自動調整）
     '.label{font-size:10pt;border:1.5px solid #b87888;border-radius:3mm;padding:3mm 4mm;display:flex;flex-direction:column;justify-content:space-between;background:white;overflow:hidden}'+
     '.label-empty{border:1px dashed #ddd;font-size:10pt}.lbl-market{font-size:1.05em;font-weight:900;color:#8b6458;text-align:center;border-bottom:1px solid #e0cfc8;padding-bottom:1.5mm;margin-bottom:1.5mm}'+
