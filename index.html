@@ -14,10 +14,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <title>出荷伝票作成</title>
 <style>
-  /* ── SAKAI FLORIC MITSUSE ─ ボタニカル水彩テーマ ── */
+  /* ── SAKAI FLORIC MITSUSE ─ ボタニカル水彩テーマ v2 ── */
   :root{
     color-scheme:light;
-    --bg:#faf7f4;
+    --bg:#f7f2ee;
+    --bg-deep:#f1e9e3;
     --card:#ffffff;
     --text:#3a2e28;
     --text-mid:#6e5a50;
@@ -36,88 +37,123 @@
     --gold-light:#f8f0e8;
     --border:#e0cfc8;
     --border-light:#ede5e0;
+    --radius:14px;
+    --radius-sm:10px;
+    --shadow-sm:0 1px 3px rgba(107,74,58,0.07),0 1px 2px rgba(107,74,58,0.05);
+    --shadow-md:0 4px 16px rgba(107,74,58,0.10),0 1px 4px rgba(107,74,58,0.06);
+    --shadow-lg:0 10px 30px rgba(107,74,58,0.16),0 3px 8px rgba(107,74,58,0.08);
+    --ease:cubic-bezier(.33,1,.5,1);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);padding:12px;font-size:14px;-webkit-tap-highlight-color:transparent}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Noto Sans JP',sans-serif;color:var(--text);padding:14px;font-size:14px;
+    -webkit-tap-highlight-color:transparent;line-height:1.55;
+    background:
+      radial-gradient(1100px 500px at 110% -8%,rgba(184,120,136,0.10),transparent 60%),
+      radial-gradient(900px 480px at -15% 0%,rgba(196,152,106,0.10),transparent 55%),
+      radial-gradient(800px 600px at 50% 115%,rgba(152,120,168,0.07),transparent 60%),
+      var(--bg);
+    background-attachment:fixed;
+    min-height:100vh;
+  }
+  ::selection{background:var(--rose-light)}
 
   /* ── ヘッダー ── */
-  h1{font-family:'Cormorant Garamond','Noto Sans JP',serif;font-size:19px;font-weight:600;color:var(--primary);margin-bottom:10px;display:flex;align-items:center;gap:8px;letter-spacing:0.03em;border-bottom:1px solid var(--border);padding-bottom:8px}
+  h1{font-family:'Cormorant Garamond','Noto Sans JP',serif;font-size:19px;font-weight:600;color:var(--primary);margin-bottom:10px;display:flex;align-items:center;gap:8px;letter-spacing:0.04em;border-bottom:1px solid var(--border);padding-bottom:8px}
 
   /* ── タブ ── */
-  .tabs{display:flex;gap:4px;margin-bottom:12px}
-  .tab-btn{flex:1;padding:11px 6px;border:1.5px solid var(--border);border-radius:8px;background:var(--card);color:var(--text-mid);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;text-align:center;min-height:44px;font-family:'Noto Sans JP',sans-serif}
-  .tab-btn.active{background:var(--rose);color:white;border-color:var(--rose)}
-  .tab-btn:hover:not(.active){background:var(--rose-light);border-color:var(--rose)}
+  .tabs{display:flex;gap:5px;margin-bottom:14px;background:rgba(255,255,255,0.65);border:1px solid var(--border-light);padding:5px;border-radius:999px;box-shadow:var(--shadow-sm);backdrop-filter:blur(6px)}
+  .tab-btn{flex:1;padding:10px 4px;border:none;border-radius:999px;background:transparent;color:var(--text-mid);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.25s var(--ease);text-align:center;min-height:42px;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.02em}
+  .tab-btn.active{background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;box-shadow:0 3px 10px rgba(184,120,136,0.40)}
+  .tab-btn:hover:not(.active){background:var(--rose-light);color:var(--rose-dark)}
+  .tab-btn:active{transform:scale(0.97)}
   .tab-panel{display:none}
-  .tab-panel.active{display:block}
+  .tab-panel.active{display:block;animation:fadeUp 0.32s var(--ease)}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+  /* ── ボタン共通の質感 ── */
+  button{-webkit-tap-highlight-color:transparent}
+  .complete-btn,.btn-primary,.btn-export,.btn-excel,.btn-label,.btn-pdf,.btn-install,.btn-mail,.btn-clear,.add-btn,.send-market-btn{
+    transition:transform 0.15s var(--ease),box-shadow 0.2s var(--ease),filter 0.2s,background 0.2s;
+  }
+  .complete-btn:active,.btn-primary:active,.btn-export:active,.btn-excel:active,.btn-label:active,.btn-pdf:active,.btn-install:active,.btn-mail:active,.btn-clear:active,.add-btn:active,.send-market-btn:active{transform:translateY(1px) scale(0.985)}
 
   /* ── ボタン類 ── */
-  .complete-btn{background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;border-radius:10px;padding:14px 24px;font-size:16px;font-weight:700;cursor:pointer;width:100%;margin-top:12px;min-height:52px;transition:all 0.2s;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.05em}
-  .complete-btn:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858)}
-  .saved-banner{background:var(--sage-light);border:1.5px solid var(--sage);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--sage);font-weight:700;display:none;margin-top:8px;text-align:center}
+  .complete-btn{background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;border-radius:var(--radius-sm);padding:14px 24px;font-size:16px;font-weight:700;cursor:pointer;width:100%;margin-top:12px;min-height:52px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.06em;box-shadow:0 5px 16px rgba(184,120,136,0.38)}
+  .complete-btn:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858);box-shadow:0 7px 20px rgba(143,90,104,0.45)}
+  .saved-banner{background:var(--sage-light);border:1.5px solid var(--sage);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:#4e7458;font-weight:700;display:none;margin-top:8px;text-align:center;box-shadow:var(--shadow-sm)}
   .actions{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:140px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:140px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(107,74,58,0.28)}
   .btn-primary:hover{background:linear-gradient(135deg,var(--primary-dark),#542e20)}
-  .btn-export{background:linear-gradient(135deg,var(--lavender),#7858a0);color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:140px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-export{background:linear-gradient(135deg,var(--lavender),#7858a0);color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:140px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(120,88,160,0.28)}
   .btn-export:hover{background:linear-gradient(135deg,#7858a0,#604880)}
-  .btn-clear{background:#ede5e0;color:var(--text-mid);border:none;border-radius:8px;padding:12px 14px;cursor:pointer;font-size:14px;font-weight:600;transition:background 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
-  .btn-clear:hover{background:#ddd0c8}
-  .btn-excel{background:linear-gradient(135deg,var(--sage),#5a8060);color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-clear{background:rgba(255,255,255,0.85);color:var(--text-mid);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer;font-size:14px;font-weight:600;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-clear:hover{background:var(--border-light);border-color:#d4bdb2}
+  .btn-excel{background:linear-gradient(135deg,var(--sage),#5a8060);color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(90,128,96,0.28)}
   .btn-excel:hover{background:linear-gradient(135deg,#5a8060,#406048)}
-  .btn-label{background:linear-gradient(135deg,var(--gold),#a87848);color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-label{background:linear-gradient(135deg,var(--gold),#a87848);color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(168,120,72,0.28)}
   .btn-label:hover{background:linear-gradient(135deg,#a87848,#886030)}
-  .btn-pdf{background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-pdf{background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:120px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(184,120,136,0.30)}
   .btn-pdf:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858)}
-  .btn-install{background:linear-gradient(135deg,var(--gold),#a87848);color:white;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;transition:all 0.2s;min-height:44px;touch-action:manipulation;flex:1;font-family:'Noto Sans JP',sans-serif}
+  .btn-install{background:linear-gradient(135deg,var(--gold),#a87848);color:white;border:none;border-radius:var(--radius-sm);padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;min-height:44px;touch-action:manipulation;flex:1;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(168,120,72,0.28)}
   .btn-install:hover{background:linear-gradient(135deg,#a87848,#886030)}
-  .btn-mail{background:linear-gradient(135deg,var(--lavender),#7858a0);color:white;border:none;border-radius:8px;padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:90px;transition:all 0.2s;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .btn-mail{background:linear-gradient(135deg,var(--lavender),#7858a0);color:white;border:none;border-radius:var(--radius-sm);padding:12px 18px;cursor:pointer;font-size:14px;font-weight:600;flex:1;min-width:90px;min-height:48px;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(120,88,160,0.28)}
   .btn-mail:hover{background:linear-gradient(135deg,#7858a0,#604880)}
 
   /* ── カード ── */
-  .card{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(139,100,88,0.08);border:1px solid var(--border-light)}
-  .section-title{font-family:'Cormorant Garamond','Noto Sans JP',serif;font-size:15px;font-weight:600;color:var(--primary);margin-bottom:10px;letter-spacing:0.02em}
+  .card{background:linear-gradient(180deg,#ffffff,#fffcfa);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);border:1px solid rgba(224,207,200,0.55)}
+  .section-title{font-family:'Cormorant Garamond','Noto Sans JP',serif;font-size:16px;font-weight:600;color:var(--primary);margin-bottom:12px;letter-spacing:0.03em;display:flex;align-items:center;gap:8px}
+  .section-title::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
 
   /* ── ステータスバー ── */
-  .status-bar{border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;min-height:36px;display:flex;align-items:center;gap:6px;background:var(--primary-light);color:var(--primary)}
-  .status-bar.error{background:#fdf0f0;color:#9a3838}
-  .status-bar.recording{background:#fef8e8;color:#9a6820;font-weight:600}
-  .status-bar.ok{background:var(--lavender-light);color:var(--lavender)}
+  .status-bar{border-radius:var(--radius-sm);padding:9px 14px;margin-bottom:12px;font-size:13px;min-height:38px;display:flex;align-items:center;gap:6px;background:rgba(245,237,232,0.9);color:var(--primary);border:1px solid var(--border-light);box-shadow:var(--shadow-sm)}
+  .status-bar.error{background:#fdf0f0;color:#9a3838;border-color:#f0d4d4}
+  .status-bar.recording{background:#fef8e8;color:#9a6820;font-weight:600;border-color:#f0e0b8}
+  .status-bar.ok{background:var(--lavender-light);color:#7858a0;border-color:#ded4ee}
 
   /* ── インストールバー ── */
-  .install-bar{background:var(--gold-light);border:1.5px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;font-size:13px}
+  .install-bar{background:var(--gold-light);border:1.5px solid var(--gold);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px;font-size:13px;box-shadow:var(--shadow-sm)}
 
   /* ── マイクエリア ── */
-  .quick-voice{background:linear-gradient(135deg,var(--rose-light),var(--primary-light));border:1.5px solid var(--rose);border-radius:14px;padding:14px;margin-bottom:12px;text-align:center}
-  .quick-voice p{font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6}
+  .quick-voice{background:linear-gradient(150deg,#fdf2f4,#f8edf0 45%,#f5ede8);border:1px solid rgba(184,120,136,0.45);border-radius:var(--radius);padding:18px 14px 16px;margin-bottom:14px;text-align:center;box-shadow:var(--shadow-md);position:relative;overflow:hidden}
+  .quick-voice::before{content:"";position:absolute;inset:0;background:radial-gradient(420px 160px at 85% -30%,rgba(184,120,136,0.14),transparent 70%);pointer-events:none}
+  .quick-voice p{font-size:12px;color:var(--text-mid);margin-bottom:12px;line-height:1.7;position:relative}
   .quick-voice p strong{color:var(--rose-dark)}
-  .big-mic{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:white;border:none;font-size:28px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(184,120,136,0.45);transition:all 0.2s;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-  .big-mic:hover{background:linear-gradient(135deg,var(--rose-dark),#7a4858)}
-  .big-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);box-shadow:0 4px 16px rgba(212,80,80,0.5);animation:pulse 0.7s infinite}
+  .big-mic{width:74px;height:74px;border-radius:50%;background:linear-gradient(145deg,#c98a99,var(--rose) 40%,var(--rose-dark));color:white;border:none;font-size:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(184,120,136,0.50),inset 0 1px 0 rgba(255,255,255,0.35);transition:all 0.25s var(--ease);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;position:relative}
+  .big-mic:hover{background:linear-gradient(145deg,var(--rose),var(--rose-dark) 60%,#7a4858);transform:scale(1.04);box-shadow:0 8px 24px rgba(184,120,136,0.55),inset 0 1px 0 rgba(255,255,255,0.3)}
+  .big-mic:active{transform:scale(0.96)}
+  .big-mic.recording{background:linear-gradient(145deg,#e06868,#d45050 45%,#b03030);box-shadow:0 4px 16px rgba(212,80,80,0.5);animation:pulse 0.7s infinite}
   /* 画面をスクロールしても付いてくる浮かぶマイク（品目入力画面で元のマイクが隠れたら表示） */
-  .fab-mic{position:fixed;right:18px;bottom:22px;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;border:none;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(184,120,136,0.55);z-index:900;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-  .fab-mic.show{display:inline-flex}
-  .fab-mic.recording{background:linear-gradient(135deg,#d45050,#b03030);animation:pulse 0.7s infinite}
-  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
-  .mic-hint{font-size:11px;color:var(--text-light);margin-top:7px}
-  .field-row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .fab-mic{position:fixed;right:18px;bottom:22px;width:64px;height:64px;border-radius:50%;background:linear-gradient(145deg,#c98a99,var(--rose) 40%,var(--rose-dark));color:#fff;border:none;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(143,90,104,0.50),inset 0 1px 0 rgba(255,255,255,0.3);z-index:900;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform 0.2s var(--ease)}
+  .fab-mic.show{display:inline-flex;animation:fabIn 0.3s var(--ease)}
+  @keyframes fabIn{from{opacity:0;transform:scale(0.6)}to{opacity:1;transform:scale(1)}}
+  .fab-mic:active{transform:scale(0.94)}
+  .fab-mic.recording{background:linear-gradient(145deg,#e06868,#d45050 45%,#b03030);animation:pulse 0.7s infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 4px 16px rgba(212,80,80,0.5)}50%{transform:scale(1.08);box-shadow:0 6px 24px rgba(212,80,80,0.65)}}
+  .mic-hint{font-size:11px;color:var(--text-light);margin-top:9px;letter-spacing:0.03em;position:relative}
+  .field-row{display:flex;gap:10px;align-items:center;margin-bottom:9px}
   .field-row:last-child{margin-bottom:0}
   label{font-weight:600;color:var(--text-mid);min-width:72px;font-size:13px}
-  input,select{border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:16px;flex:1;min-width:80px;outline:none;transition:border 0.2s;background:#fefaf8;font-family:'Noto Sans JP',sans-serif;color:var(--text)}
-  input:focus,select:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(184,120,136,0.12)}
-  .mic-sm{width:42px;height:42px;border-radius:50%;font-size:17px;border:1.5px solid var(--border);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;touch-action:manipulation}
-  .mic-sm:hover{background:var(--rose-light);border-color:var(--rose)}
+  input,select{border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;font-size:16px;flex:1;min-width:80px;outline:none;transition:border 0.2s,box-shadow 0.2s,background 0.2s;background:#fdfaf8;font-family:'Noto Sans JP',sans-serif;color:var(--text)}
+  input:hover,select:hover{border-color:#d2bcb2}
+  input:focus,select:focus{border-color:var(--rose);background:#fff;box-shadow:0 0 0 3.5px rgba(184,120,136,0.14)}
+  .mic-sm{width:42px;height:42px;border-radius:50%;font-size:17px;border:1.5px solid var(--border);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s var(--ease);touch-action:manipulation;box-shadow:var(--shadow-sm)}
+  .mic-sm:hover{background:var(--rose-light);border-color:var(--rose);transform:scale(1.05)}
+  .mic-sm:active{transform:scale(0.94)}
   .mic-sm.recording{background:#fdf0f0;border-color:#d45050;animation:pulse 0.7s infinite}
 
   /* ── 品目カード ── */
-  .item-card{background:#fdf8f5;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px}
-  .item-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-  .item-num{font-size:11px;font-weight:700;color:var(--rose);white-space:nowrap;font-family:'Cormorant Garamond',serif;font-style:italic}
+  .item-card{background:linear-gradient(180deg,#fefbf9,#fdf7f3);border:1px solid var(--border);border-left:3px solid var(--rose);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow-sm);transition:box-shadow 0.2s}
+  .item-card:focus-within{box-shadow:var(--shadow-md);border-color:rgba(184,120,136,0.5);border-left-color:var(--rose)}
+  .item-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .item-num{font-size:13px;font-weight:700;color:var(--rose);white-space:nowrap;font-family:'Cormorant Garamond',serif;font-style:italic;letter-spacing:0.04em}
   .item-summary{font-size:13px;color:var(--primary);font-weight:600;flex:1}
-  .delete-btn{background:none;border:none;color:#ccc;cursor:pointer;font-size:20px;line-height:1;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center}
-  .delete-btn:hover{color:#d45050}
-  .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-  .item-field{display:flex;flex-direction:column;gap:2px}
-  .item-field>label{font-size:11px;color:var(--text-light);font-weight:600;min-width:unset}
+  .delete-btn{background:none;border:none;color:#d4c4bc;cursor:pointer;font-size:20px;line-height:1;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all 0.15s}
+  .delete-btn:hover{color:#d45050;background:#fdf0f0}
+  .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .item-field{display:flex;flex-direction:column;gap:3px}
+  .item-field>label{font-size:11px;color:var(--text-light);font-weight:600;min-width:unset;letter-spacing:0.04em}
   .item-input-row{display:flex;gap:4px;align-items:center}
   .item-input-row input,.item-input-row select{font-size:16px;padding:8px 8px;min-width:unset}
   input.missing,select.missing{border-color:#d4a040!important;background:#fef8e8!important;box-shadow:0 0 0 2px rgba(212,160,64,0.25)}
@@ -127,108 +163,127 @@
   .item-card.has-warn{border-left:4px solid #fb8c00}
   .item-card.has-error{border-left:4px solid #e53935}
   .full-col{grid-column:span 2}
-  .add-btn{background:var(--rose-light);border:1.5px dashed var(--rose);border-radius:8px;padding:10px;width:100%;cursor:pointer;color:var(--rose-dark);font-size:14px;font-weight:600;transition:background 0.2s;margin-top:4px;min-height:44px;font-family:'Noto Sans JP',sans-serif}
-  .add-btn:hover{background:#edd8de}
+  .add-btn{background:rgba(245,232,236,0.7);border:1.5px dashed var(--rose);border-radius:var(--radius-sm);padding:11px;width:100%;cursor:pointer;color:var(--rose-dark);font-size:14px;font-weight:600;margin-top:4px;min-height:46px;font-family:'Noto Sans JP',sans-serif;letter-spacing:0.03em}
+  .add-btn:hover{background:#f0dde3;border-style:solid}
 
   /* ── 振り分けテーブル ── */
-  .dist-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .dist-table{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
-  .dist-table th{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;padding:8px 6px;text-align:center;font-size:12px;white-space:nowrap;font-weight:700}
+  .dist-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius-sm)}
+  .dist-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px}
+  .dist-table th{background:linear-gradient(180deg,var(--primary),var(--primary-dark));color:#fdf6f2;padding:9px 6px;text-align:center;font-size:12px;white-space:nowrap;font-weight:700;letter-spacing:0.03em}
+  .dist-table th:first-child{border-radius:8px 0 0 0}
+  .dist-table th:last-child{border-radius:0 8px 0 0}
   .dist-table th.item-col{text-align:left;min-width:100px}
-  .dist-table td{padding:6px 4px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+  .dist-table td{padding:7px 4px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+  .dist-table tbody tr:hover td{background:rgba(245,237,232,0.55)}
   .dist-table td.item-info{font-size:12px;color:var(--primary);font-weight:600;white-space:nowrap}
   .dist-table td.total-col{text-align:center;font-weight:700;color:var(--primary)}
   .dist-table td.remaining{text-align:center;font-weight:700;color:#b0a0a0;font-size:12px}
   .dist-table td.remaining.zero{color:var(--sage)}
   .dist-table td.remaining.negative{color:#c84848}
-  .dist-num{width:56px;padding:5px;border:1.5px solid var(--border);border-radius:5px;font-size:13px;text-align:center;background:#fefaf8;outline:none}
-  .dist-num:focus{border-color:var(--rose)}
+  .dist-num{width:56px;padding:6px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;text-align:center;background:#fdfaf8;outline:none;transition:border 0.2s,box-shadow 0.2s}
+  .dist-num:focus{border-color:var(--rose);background:#fff;box-shadow:0 0 0 3px rgba(184,120,136,0.14)}
   .unit-label{font-size:10px;color:#b8a8a0;margin-left:2px}
 
   /* ── 統計テーブル ── */
   .stat-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
-  .stat-table th{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;padding:6px 8px;text-align:left;font-weight:700;position:sticky;top:0}
-  .stat-table td{padding:5px 8px;border-bottom:1px solid var(--border-light);vertical-align:middle}
-  .stat-table tr:nth-child(even) td{background:#fdf8f5}
-  .stat-wrap{max-height:55vh;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
+  .stat-table th{background:linear-gradient(180deg,var(--primary),var(--primary-dark));color:#fdf6f2;padding:7px 8px;text-align:left;font-weight:700;position:sticky;top:0;letter-spacing:0.03em}
+  .stat-table td{padding:6px 8px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+  .stat-table tr:nth-child(even) td{background:#fbf6f2}
+  .stat-table tbody tr:hover td{background:rgba(245,232,236,0.5)}
+  .stat-wrap{max-height:55vh;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);background:#fff}
   .stat-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
-  .stat-filter select,.stat-filter input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px}
-  .hist-card{background:var(--card);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;cursor:default}
-  .hist-date{font-weight:700;color:var(--primary);margin-bottom:4px;font-family:'Cormorant Garamond',serif;font-style:italic}
-  .bar{height:10px;background:var(--rose);border-radius:3px;display:inline-block;margin-left:4px;vertical-align:middle}
+  .stat-filter select,.stat-filter input{padding:7px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px}
+  .hist-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 13px;cursor:default;box-shadow:var(--shadow-sm);transition:box-shadow 0.2s}
+  .hist-card:hover{box-shadow:var(--shadow-md)}
+  .hist-date{font-weight:700;color:var(--primary);margin-bottom:4px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px}
+  .bar{height:10px;background:linear-gradient(90deg,var(--rose),var(--rose-dark));border-radius:5px;display:inline-block;margin-left:4px;vertical-align:middle}
 
   /* ── サマリーテーブル ── */
   .summary-table{width:100%;border-collapse:collapse;font-size:12px}
-  .summary-table th{background:var(--primary-light);color:var(--primary);padding:6px 8px;text-align:left;font-weight:700;border-bottom:1px solid var(--border)}
-  .summary-table td{padding:5px 8px;border-bottom:1px solid var(--border-light)}
-  .summary-table tr:nth-child(even) td{background:#fdf8f5}
+  .summary-table th{background:var(--primary-light);color:var(--primary);padding:7px 9px;text-align:left;font-weight:700;border-bottom:1.5px solid var(--border);letter-spacing:0.03em}
+  .summary-table td{padding:6px 9px;border-bottom:1px solid var(--border-light)}
+  .summary-table tr:nth-child(even) td{background:#fbf6f2}
 
   /* ── 設定 ── */
-  .settings-grid{display:grid;grid-template-columns:100px 1fr;gap:8px 12px;align-items:center}
+  .settings-grid{display:grid;grid-template-columns:100px 1fr;gap:9px 12px;align-items:center}
   .settings-label{font-size:13px;font-weight:600;color:var(--primary)}
-  .settings-input{padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;width:100%;background:#fefaf8;font-family:'Noto Sans JP',sans-serif}
-  .mkt-del-btn{background:#d45050;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px}
-  .send-market-btn{width:100%;padding:12px 16px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif}
+  .settings-input{padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;width:100%;background:#fdfaf8;font-family:'Noto Sans JP',sans-serif;transition:border 0.2s,box-shadow 0.2s}
+  .settings-input:focus{border-color:var(--rose);background:#fff;box-shadow:0 0 0 3px rgba(184,120,136,0.14);outline:none}
+  .mkt-del-btn{background:#d45050;color:white;border:none;border-radius:7px;padding:5px 11px;cursor:pointer;font-size:13px;transition:background 0.15s}
+  .mkt-del-btn:hover{background:#b83838}
+  .send-market-btn{width:100%;padding:13px 16px;border:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;touch-action:manipulation;font-family:'Noto Sans JP',sans-serif;box-shadow:0 3px 10px rgba(107,74,58,0.28);letter-spacing:0.02em}
   .send-market-btn:hover{background:linear-gradient(135deg,var(--primary-dark),#542e20)}
-  .send-market-btn.sent{background:#b0a090}
+  .send-market-btn.sent{background:#b0a090;box-shadow:none}
   .send-market-btn .send-arrow{font-size:18px}
   .lbl-code{font-size:9px;color:var(--text-light);margin-top:1px}
 
   /* ── その他 ── */
-  .no-support{background:#fef8e8;border:1px solid var(--gold);border-radius:6px;padding:9px 13px;font-size:13px;color:var(--text-mid);margin-bottom:12px}
-  .info-box{background:var(--lavender-light);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--lavender);margin-bottom:10px;line-height:1.5;border:1px solid rgba(152,120,168,0.25)}
-  #micHelpBox code{background:#f5f0ec;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px}
-  #emailPanel{background:var(--lavender-light);border:1px solid rgba(152,120,168,0.35);border-radius:10px;padding:14px 16px;margin-bottom:10px;display:none}
-  #emailPanel label{font-size:12px;color:var(--lavender);font-weight:700;display:block;margin-top:8px;margin-bottom:3px}
-  #emailPanel input{width:100%;padding:7px 10px;border:1px solid rgba(152,120,168,0.4);border-radius:6px;font-size:13px;box-sizing:border-box}
-  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:var(--rose-light);color:var(--rose-dark)}
+  .no-support{background:#fef8e8;border:1px solid var(--gold);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:var(--text-mid);margin-bottom:12px}
+  .info-box{background:var(--lavender-light);border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:#7858a0;margin-bottom:10px;line-height:1.6;border:1px solid rgba(152,120,168,0.25)}
+  #micHelpBox code{background:#f5f0ec;padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px}
+  #emailPanel{background:var(--lavender-light);border:1px solid rgba(152,120,168,0.35);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;display:none;box-shadow:var(--shadow-sm)}
+  #emailPanel label{font-size:12px;color:#7858a0;font-weight:700;display:block;margin-top:8px;margin-bottom:3px}
+  #emailPanel input{width:100%;padding:8px 11px;border:1px solid rgba(152,120,168,0.4);border-radius:8px;font-size:13px;box-sizing:border-box}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:var(--rose-light);color:var(--rose-dark);letter-spacing:0.02em}
   .badge.ext{background:#fdeae0;color:#9a4820}
 
   /* ── 振り分け設定 ── */
-  .dist-set-row{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fdf8f5;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;transition:box-shadow 0.15s}
-  .dist-set-row:hover{box-shadow:0 2px 8px rgba(184,120,136,0.15)}
-  .dist-prio-badge{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;font-weight:700;width:24px;text-align:center;flex-shrink:0}
+  .dist-set-row{display:flex;align-items:center;gap:8px;padding:11px 13px;background:linear-gradient(180deg,#fefbf9,#fdf7f3);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:9px;transition:box-shadow 0.2s var(--ease);box-shadow:var(--shadow-sm)}
+  .dist-set-row:hover{box-shadow:var(--shadow-md)}
+  .dist-prio-badge{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:21px;font-weight:700;width:24px;text-align:center;flex-shrink:0}
   .dist-mkt-name{font-weight:700;color:var(--primary);font-size:13px;flex:1;min-width:60px}
   .dist-slider-wrap{display:flex;flex-direction:column;gap:4px;flex:2;min-width:0}
-  .dist-slider{width:100%;height:22px;cursor:pointer}
-  .dist-bar-track{width:100%;height:8px;background:#ede5e0;border-radius:4px;overflow:hidden;pointer-events:none}
-  .dist-bar-fill{height:8px;border-radius:4px;transition:width 0.2s}
+  .dist-slider{width:100%;height:22px;cursor:pointer;accent-color:var(--rose)}
+  .dist-bar-track{width:100%;height:8px;background:var(--border-light);border-radius:4px;overflow:hidden;pointer-events:none}
+  .dist-bar-fill{height:8px;border-radius:4px;transition:width 0.25s var(--ease)}
   .dist-pct-val{font-size:14px;font-weight:700;min-width:40px;text-align:right;flex-shrink:0}
   .dist-arrows{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
-  .dist-arrow{background:var(--primary-light);border:1.5px solid var(--border);border-radius:5px;font-size:13px;width:32px;height:30px;cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:all 0.15s;font-family:'Noto Sans JP',sans-serif}
+  .dist-arrow{background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:13px;width:32px;height:30px;cursor:pointer;color:var(--primary);display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:all 0.15s;font-family:'Noto Sans JP',sans-serif;box-shadow:var(--shadow-sm)}
   .dist-arrow:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose-dark)}
+  .dist-arrow:active{transform:scale(0.92)}
   /* ── 共箱 ── */
-  .matome-btn{font-size:10px;padding:2px 6px;background:#ede0db;border:1px solid #c4a090;border-radius:3px;cursor:pointer;color:#5a3e35;margin-top:3px;touch-action:manipulation;display:block;white-space:nowrap;width:100%;line-height:1.4}
-  .matome-btn:hover,.matome-btn:active{background:#d9c0b8}
+  .matome-btn{font-size:10px;padding:3px 7px;background:#f2e6e0;border:1px solid #c4a090;border-radius:6px;cursor:pointer;color:#5a3e35;margin-top:3px;touch-action:manipulation;display:block;white-space:nowrap;width:100%;line-height:1.4;transition:background 0.15s}
+  .matome-btn:hover,.matome-btn:active{background:#e3cabe}
   .phys-badge{font-size:10px;color:#b87888;display:none;margin-top:2px;font-weight:700;line-height:1.2}
   .matome-item-row{display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #f0e8e4}
-  .matome-step-btn{width:34px;height:34px;font-size:20px;border:1px solid #c4a090;border-radius:6px;background:#fff5f2;cursor:pointer;touch-action:manipulation;font-weight:700;color:#5a3e35;line-height:1;flex-shrink:0}
-  .matome-step-btn:active{background:#e8cfc4}
-  .matome-step-inp{width:46px;text-align:center;font-size:18px;font-weight:700;border:1px solid #c4a090;border-radius:6px;padding:4px 2px;color:#5a3e35;-moz-appearance:textfield}
+  .matome-step-btn{width:36px;height:36px;font-size:20px;border:1px solid #c4a090;border-radius:9px;background:#fff8f5;cursor:pointer;touch-action:manipulation;font-weight:700;color:#5a3e35;line-height:1;flex-shrink:0;box-shadow:var(--shadow-sm);transition:all 0.12s}
+  .matome-step-btn:active{background:#e8cfc4;transform:scale(0.93)}
+  .matome-step-inp{width:46px;text-align:center;font-size:18px;font-weight:700;border:1px solid #c4a090;border-radius:8px;padding:4px 2px;color:#5a3e35;-moz-appearance:textfield}
   .matome-step-inp::-webkit-inner-spin-button,.matome-step-inp::-webkit-outer-spin-button{-webkit-appearance:none}
   /* 振り分けタブ プレビュー */
-  .dist-ratio-preview{background:var(--primary-light);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .dist-ratio-preview{background:linear-gradient(150deg,#f8f0eb,#f5ede8);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow-sm)}
   .dist-ratio-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
   .dist-ratio-bars{display:flex;gap:5px;height:56px;align-items:flex-end}
   .dist-ratio-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0}
-  .dist-ratio-fill{width:100%;border-radius:3px 3px 0 0;min-height:4px}
+  .dist-ratio-fill{width:100%;border-radius:4px 4px 0 0;min-height:4px;transition:height 0.3s var(--ease)}
   .dist-ratio-name{font-size:9px;color:var(--text-mid);text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
   .dist-ratio-pct{font-size:11px;font-weight:700}
 
+  /* ── アプリヘッダー ── */
+  .app-header{display:flex;align-items:center;gap:12px;padding:8px 2px 12px;margin-bottom:12px;border-bottom:1px solid var(--border-light);position:relative}
+  .app-header::after{content:"";position:absolute;bottom:-1px;left:0;width:64px;height:2px;background:linear-gradient(90deg,var(--rose),transparent);border-radius:2px}
+  .app-header img{width:50px;height:50px;border-radius:50%;object-fit:cover;box-shadow:0 3px 10px rgba(180,120,100,0.25);flex-shrink:0;border:2px solid #fff}
+  .app-title{font-size:18px;color:var(--primary);letter-spacing:0.08em;font-weight:700;line-height:1.15}
+  .app-subtitle{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11.5px;color:var(--text-light);letter-spacing:0.14em;margin-top:2px}
+
   @media(max-width:480px){
-    body{padding:8px}
-    .tab-btn{font-size:12px;padding:10px 4px}
+    body{padding:10px}
+    .tab-btn{font-size:12px;padding:9px 2px}
     h1{font-size:16px}
     .item-fields{grid-template-columns:1fr}
     .full-col{grid-column:span 1}
   }
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+  }
 </style>
 </head>
 <body>
-<div style="display:flex;align-items:center;gap:10px;padding:4px 0 6px 0;border-bottom:1.5px solid var(--border);margin-bottom:4px">
-  <img src="icon-192.png" alt="出荷伝票アプリ" style="width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 2px 8px rgba(180,120,100,0.18);flex-shrink:0">
+<div class="app-header">
+  <img src="icon-192.png" alt="出荷伝票アプリ">
   <div>
-    <div style="font-size:17px;color:var(--primary);letter-spacing:0.05em;font-family:'Noto Sans JP',sans-serif;font-weight:600;line-height:1.1">出荷伝票アプリ</div>
+    <div class="app-title">出荷伝票アプリ</div>
+    <div class="app-subtitle">SAKAI FLORIC MITSUSE</div>
   </div>
 </div>
 <div id="installBar" class="install-bar">
@@ -513,7 +568,7 @@
     <div class="section-title">&#x1F3EA; 市場設定（コード・メール）</div>
     <div style="font-size:12px;color:var(--lavender);background:var(--lavender-light);border-radius:6px;padding:7px 10px;margin-bottom:8px;border:1px solid rgba(152,120,168,0.25)">
       &#x2709; <strong>メールアドレス</strong>欄に各市場担当者のアドレスを入力すると、伝票送信時に自動でメーラーが開きます<br>
-      &#x1F4E0; <strong>FAX番号</strong>欄に各市場のFAX番号を入力すると、伝票出力で「FAXで送る」ボタンが使えます（下の「FAXサービスのドメイン」も入力してください）
+      &#x1F4E0; <strong>FAX番号</strong>欄に各市場のFAX番号を入力すると、伝票出力で「FAXで送る」ボタンが使えます（下の「秒速FAX送信 送信用メールアドレス」も入力してください）
     </div>
     <div style="overflow-x:auto">
       <table class="stat-table" id="marketSettingTable" style="min-width:520px">
@@ -522,12 +577,12 @@
       </table>
     </div>
     <div style="margin-top:10px;background:#fdf8f5;border:1px solid #e0cfc8;border-radius:8px;padding:10px 12px">
-      <label class="settings-label" style="display:block;margin-bottom:4px">&#x1F4E0; FAXサービスのドメイン（インターネットFAX）</label>
-      <input type="text" id="fax_gateway" class="settings-input" placeholder="例：efaxsend.com">
+      <label class="settings-label" style="display:block;margin-bottom:4px">&#x1F4E0; 秒速FAX送信 ― 送信用メールアドレス</label>
+      <input type="email" id="fax_send_addr" class="settings-input" placeholder="例：xxxxx@toones.email-fax.jp（発行されたアドレス）">
       <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
-        ご契約のインターネットFAXサービスの送信用ドメインを入力します。<br>
-        「FAXで送る」を押すと <strong>FAX番号＠このドメイン</strong> 宛にメールが作成され、FAXとして届きます。<br>
-        （例：eFax→efaxsend.com など。サービスにより異なります）
+        「秒速FAX送信」の管理画面［送信アドレス管理］で発行した<strong>送信用メールアドレス</strong>を入力します。<br>
+        「FAXで送る」を押すと、このアドレス宛に <strong>件名＝相手先FAX番号／本文＝伝票内容</strong> のメールが作られます。そのまま送信するとFAXとして届きます。<br>
+        ※ 相手先FAX番号は、各市場の「FAX番号」欄に <strong>市外局番から</strong> 登録してください。
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
@@ -810,9 +865,9 @@ function saveMarketSettings(){
     settings.push({name:name,code:tr.querySelector('.ms-code').value.trim(),email:tr.querySelector('.ms-email').value.trim(),fax:faxEl?faxEl.value.trim():''});
   });
   localStorage.setItem('marketSettings',JSON.stringify(settings));
-  // FAXサービスのドメイン（インターネットFAX）を保存
-  var gwEl=document.getElementById('fax_gateway');
-  if(gwEl)localStorage.setItem('faxGateway',gwEl.value.trim());
+  // 秒速FAX送信の送信用メールアドレスを保存
+  var addrEl=document.getElementById('fax_send_addr');
+  if(addrEl)localStorage.setItem('faxSendAddr',addrEl.value.trim());
   MARKETS=settings.map(function(s){return s.name;});
   var em={};
   var oldEm=null;try{oldEm=JSON.parse(localStorage.getItem('emailSettings'))||{};}catch(e){oldEm={};}
@@ -852,16 +907,13 @@ function getMarketFax(marketName){
   var found=ms.filter(function(s){return s.name===marketName;});
   return found.length?(found[0].fax||''):'';
 }
-// インターネットFAXサービスのドメインを取得（例：efaxsend.com）
-function loadFaxGateway(){
-  try{return (localStorage.getItem('faxGateway')||'').trim();}catch(e){return '';}
+// 秒速FAX送信の「送信用メールアドレス」を取得
+function loadFaxSendAddr(){
+  try{return (localStorage.getItem('faxSendAddr')||'').trim();}catch(e){return '';}
 }
-// FAX番号＋ドメインから送信先メールアドレスを組み立てる（番号は数字のみに整形）
-function buildFaxAddress(fax){
-  var gw=loadFaxGateway();
-  var digits=(fax||'').replace(/[^\d]/g,'');
-  if(!digits||!gw)return '';
-  return digits+'@'+gw;
+// FAX番号を半角数字のみ（市外局番から・ハイフンなし）に整形
+function buildFaxNumber(fax){
+  return (fax||'').replace(/[^\d]/g,'');
 }
 function initMarkets(){
   var ms=loadMarketSettings();
@@ -1274,7 +1326,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260608-2211';
+var APP_VERSION='20260611-0849';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2986,22 +3038,21 @@ function sendMarketEmail(market,mi){
     setStatus('CSVをダウンロードしました（⑤設定でメールアドレスを登録するとメーラーも自動で開きます）','ok');
   }
 }
-// インターネットFAX（メール経由）で伝票を送る。
-// FAX番号＠FAXサービスのドメイン 宛にメーラーを開く。
+// 秒速FAX送信（メール送信）で伝票を送る。
+// 宛先＝発行された送信用メールアドレス／件名＝相手先FAX番号（市外局番から半角・ハイフンなし）／本文＝伝票内容。
 function sendMarketFax(market,mi){
   var fax=getMarketFax(market);
-  var gw=loadFaxGateway();
+  var sendAddr=loadFaxSendAddr();
   if(!fax){setStatus(market+'のFAX番号が未登録です（⑤設定の市場設定で登録してください）','error');return;}
-  if(!gw){setStatus('FAXサービスのドメインが未登録です（⑤設定の「FAXサービスのドメイン」を入力してください）','error');return;}
-  var to=buildFaxAddress(fax);
-  if(!to){setStatus('FAX送信先を組み立てられませんでした。FAX番号とドメインをご確認ください','error');return;}
+  if(!sendAddr){setStatus('秒速FAX送信の送信用メールアドレスが未登録です（⑤設定で入力してください）','error');return;}
+  var faxNo=buildFaxNumber(fax);
+  if(!faxNo){setStatus(market+'のFAX番号が正しくありません（市外局番から半角数字でご登録ください）','error');return;}
   var date=document.getElementById('shipDate').value;
   var producer=document.getElementById('producerName').value;
   var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
   var pinfo=loadProducerInfo();
   var pcode=getProducerCode(market);
-  var subject='【出荷伝票】'+market+' '+date;
   var bodyLines=['出荷伝票','市場名：'+market,'出荷日：'+date,'生産者：'+producer];
   if(pinfo.addr)bodyLines.push('住所：'+pinfo.addr);
   if(pinfo.tel)bodyLines.push('電話：'+pinfo.tel);
@@ -3012,8 +3063,9 @@ function sendMarketFax(market,mi){
   });
   var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
   var body=bodyLines.join('\n');
-  window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-  setStatus(market+'へFAX送信用メール（'+to+'）を開いています。そのまま送信してください','ok');
+  // 秒速FAX送信の仕様：件名は相手先FAX番号「のみ」。宛先は発行された送信用アドレス。
+  window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
+  setStatus(market+'（FAX '+faxNo+'）への送信メールを開きました。件名の番号はそのまま、本文を確認してそのまま送信してください','ok');
 }
 function sendAllMarketsEmail(){
   var date=document.getElementById('shipDate').value;
@@ -3266,9 +3318,9 @@ function buildMarketSettingTable(){
       '<td><button class="mkt-del-btn" onclick="this.parentElement.parentElement.remove()">削除</button></td>';
     tbody.appendChild(tr);
   });
-  // FAXサービスのドメインを反映
-  var gwEl=document.getElementById('fax_gateway');
-  if(gwEl)gwEl.value=loadFaxGateway();
+  // 秒速FAX送信の送信用メールアドレスを反映
+  var addrEl=document.getElementById('fax_send_addr');
+  if(addrEl)addrEl.value=loadFaxSendAddr();
 }
 function addMarketRow(){
   var tbody=document.getElementById('marketSettingBody');
@@ -4500,7 +4552,7 @@ function drawChart(type,settlements){
   });
 }
 // ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
-var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxGateway'];
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxSendAddr'];
 var _gistToken='';
 var _gistId='';
 
