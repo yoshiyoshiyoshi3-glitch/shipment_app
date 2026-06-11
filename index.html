@@ -390,6 +390,11 @@
 </div>
 <div id="step3" class="tab-panel">
   <div class="info-box">市場ごとに伝票のダウンロード・ラベル印刷ができます。</div>
+  <div id="restoreDraftBox" style="display:none;background:#eef7ee;border:1px solid #9cc39c;border-radius:8px;padding:11px 13px;margin-bottom:10px;font-size:13px;color:#33691e;line-height:1.6">
+    <span style="display:block;margin-bottom:7px">&#x21A9;&#xFE0F; <strong>入力データが消えていませんか？</strong> 直前の入力が自動保存されています。誤って消してしまった場合は、下のボタンで元に戻せます。</span>
+    <button class="btn-export" style="font-size:14px;padding:11px 16px;min-height:46px" onclick="restoreDraftBackup()">&#x21A9;&#xFE0F; 入力データを復元する</button>
+    <span id="restoreDraftInfo" style="font-size:11px;color:#558b2f;margin-left:8px"></span>
+  </div>
   <div id="marketSummaries"></div>
   <button class="complete-btn" onclick="completeShipment()">&#x2705; 出荷完了 ― 保存して伝票を送信</button>
   <div id="savedBanner" class="saved-banner">&#x1F4BE; 出荷データを保存しました。</div>
@@ -1327,7 +1332,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260611-0856';
+var APP_VERSION='20260611-0902';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1451,6 +1456,13 @@ window.addEventListener('load',function(){
   // 読み上げ速度セレクタを保存値で初期化
   var rateEl=document.getElementById('ttsRateSelect');
   if(rateEl)rateEl.value=String(_ttsRate);
+  // 出荷日・生産者名の変更も自動バックアップ対象にする
+  ['shipDate','producerName'].forEach(function(pid){
+    var el=document.getElementById(pid);
+    if(el){el.addEventListener('change',scheduleDraftBackup);el.addEventListener('input',scheduleDraftBackup);}
+  });
+  // 起動時、保存データがあれば伝票出力画面の復元案内を反映
+  updateRestoreDraftBox();
 });
 
 // ── Service Worker ───────────────────────────────────────────────────
@@ -2127,7 +2139,7 @@ function addItem(data){
 }
 function onGradeChange(id){var g=document.getElementById('g_'+id)?document.getElementById('g_'+id).value:'';var badge=document.getElementById('gbadge_'+id);if(badge){badge.textContent=g;badge.className='badge'+(g==='外'?' ext':'');}}
 function addItemManual(){var id=addItem({grade:'A'});var el=document.getElementById('n_'+id);if(el)el.focus();}
-function deleteItem(id){var el=document.getElementById('item-'+id);if(el)el.parentNode.removeChild(el);}
+function deleteItem(id){var el=document.getElementById('item-'+id);if(el)el.parentNode.removeChild(el);scheduleDraftBackup();}
 function refreshSummary(id){
   var n=document.getElementById('n_'+id)?document.getElementById('n_'+id).value:'';
   var v=document.getElementById('v_'+id)?document.getElementById('v_'+id).value:'';
@@ -2135,6 +2147,7 @@ function refreshSummary(id){
   var b=document.getElementById('b_'+id)?document.getElementById('b_'+id).value:'';
   var rn=document.getElementById('rn_'+id)?document.getElementById('rn_'+id).value:'';
   var s=document.getElementById('sum_'+id); if(s)s.textContent=[n,v,rn,c,b].filter(Boolean).join(' ');
+  scheduleDraftBackup();
 }
 function updateItemSummaries(){var cards=document.querySelectorAll('.item-card');for(var i=0;i<cards.length;i++){refreshSummary(cards[i].id.replace('item-',''));}}
 function getItems(){
@@ -2152,6 +2165,57 @@ function getItems(){
       note:document.getElementById('r_'+id)?document.getElementById('r_'+id).value:''});
   }
   return result;
+}
+
+// ── 入力データの自動バックアップ・復元（伝票出力画面での誤消去対策）──────
+var _draftSaveTimer=null;
+function _draftHasContent(it){return !!(it.name||it.variety||it.size||it.count||it.boxes||it.note);}
+function collectDraftBackup(){
+  var items=getItems().filter(_draftHasContent).map(function(it){
+    return{name:it.name,variety:it.variety,grade:it.grade,size:it.size,count:it.count,boxes:it.boxes,rings:it.rings,note:it.note};
+  });
+  var de=document.getElementById('shipDate'),pe=document.getElementById('producerName');
+  return{date:de?de.value:'',producer:pe?pe.value:'',items:items,savedAt:Date.now()};
+}
+function backupDraftNow(){
+  try{
+    var d=collectDraftBackup();
+    if(!d.items.length)return; // 空のときは上書きしない（クリア後も直前の入力を残す）
+    localStorage.setItem('draftBackup',JSON.stringify(d));
+  }catch(e){}
+}
+function scheduleDraftBackup(){clearTimeout(_draftSaveTimer);_draftSaveTimer=setTimeout(backupDraftNow,700);}
+function loadDraftBackup(){try{return JSON.parse(localStorage.getItem('draftBackup'));}catch(e){return null;}}
+function hasDraftBackup(){var d=loadDraftBackup();return !!(d&&d.items&&d.items.length);}
+function _fmtDraftTime(ts){try{var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0');};return p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
+function restoreDraftBackup(){
+  var d=loadDraftBackup();
+  if(!d||!d.items||!d.items.length){setStatus('復元できるデータがありません','error');return;}
+  var cur=getItems().filter(_draftHasContent);
+  if(cur.length && !confirm('いま入力されている内容を、保存されていたデータ（'+d.items.length+'品目）で置きかえます。よろしいですか？'))return;
+  document.getElementById('itemsContainer').innerHTML='';
+  itemCount=0;lastBuiltItemIds='';lastUsedName='';
+  if(d.date){var de=document.getElementById('shipDate');if(de)de.value=d.date;}
+  if(d.producer){var pe=document.getElementById('producerName');if(pe)pe.value=d.producer;}
+  d.items.forEach(function(it){addItem(it);});
+  updateItemSummaries();
+  if(typeof updateLastNameHint==='function')updateLastNameHint();
+  updateRestoreDraftBox();
+  setStatus('入力データを復元しました（'+d.items.length+'品目）。内容をご確認ください','ok');
+  showTab('step1');
+}
+function updateRestoreDraftBox(){
+  var box=document.getElementById('restoreDraftBox');if(!box)return;
+  var cur=getItems().filter(_draftHasContent);
+  // 現在の入力が空で、かつ保存データがあるときだけ案内を表示
+  if(!cur.length && hasDraftBackup()){
+    var d=loadDraftBackup();
+    box.style.display='block';
+    var info=document.getElementById('restoreDraftInfo');
+    if(info)info.textContent='（'+d.items.length+'品目・'+_fmtDraftTime(d.savedAt)+' 保存）';
+  }else{
+    box.style.display='none';
+  }
 }
 
 // ── select オプション生成 ───────────────────────────────────
@@ -2206,7 +2270,7 @@ function startFieldMic(fieldId){
   document.getElementById(id).classList.add('active');
   var idx=['step1','step2','step3','step4','step6','step5'].indexOf(id); if(idx>=0)btns[idx].classList.add('active');
   if(id==='step2'){var items=getItems().filter(function(it){return it.name;});var cids=_distSig(items);if(items.length&&cids!==lastBuiltItemIds)buildDistTable(items);buildDistPreview();}
-  else if(id==='step3'){buildMarketSummaries();}
+  else if(id==='step3'){buildMarketSummaries();updateRestoreDraftBox();}
   else if(id==='step4'){buildStatView();}
   else if(id==='step5'){buildSettingsTab();}
   else if(id==='step6'){buildSettlementView();loadApiConfigToForm();}
@@ -3971,6 +4035,7 @@ function toggleHistDetail(el){
 }
 function clearAll(){
   if(!confirm('すべての入力をクリアしますか？'))return;
+  backupDraftNow(); // クリア前の内容を保存しておく（伝票出力画面の「復元」で戻せる）
   var d=new Date();var mm=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');
   var dateEl=document.getElementById('shipDate');
   if(dateEl)dateEl.value=d.getFullYear()+'-'+mm+'-'+dd;
@@ -3979,6 +4044,7 @@ function clearAll(){
   document.getElementById('itemsContainer').innerHTML='';
   itemCount=0;lastBuiltItemIds='';lastUsedName='';
   updateLastNameHint();
+  updateRestoreDraftBox();
   setStatus('クリアしました');
 }
 function resaveToFolder(){
