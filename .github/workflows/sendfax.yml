@@ -1,0 +1,81 @@
+# FAX送信（秒速FAX・テキスト形式）
+# アプリ（スマホ）がGistの fax_outbox.json に送信依頼を書き、このワークフローを起動する。
+# Gmail SMTPから text/plain のみのメールを送る（HTMLパート無し）ため、秒速FAXの要件を満たす。
+name: sendfax
+on:
+  workflow_dispatch: {}
+concurrency: sendfax
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send pending fax mails (text/plain only)
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_PASS: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, time, smtplib, urllib.request
+          from email.mime.text import MIMEText
+          from email.utils import formatdate
+
+          tok = os.environ['GH_TOKEN']
+          user = os.environ['GMAIL_USER']
+          pw = os.environ['GMAIL_PASS']
+          H = {'Authorization': 'token ' + tok, 'User-Agent': 'sendfax'}
+
+          def api(url, data=None, method='GET'):
+              req = urllib.request.Request(url, data=data, method=method, headers=dict(H, **({'Content-Type': 'application/json'} if data else {})))
+              return json.loads(urllib.request.urlopen(req).read() or b'{}')
+
+          gists = api('https://api.github.com/gists?per_page=100')
+          now = time.time() * 1000
+          sent_total = 0
+          server = None
+          for g in gists:
+              f = (g.get('files') or {}).get('fax_outbox.json')
+              if not f:
+                  continue
+              try:
+                  content = f.get('content')
+                  if content is None or f.get('truncated'):
+                      content = urllib.request.urlopen(urllib.request.Request(f['raw_url'], headers=H)).read().decode('utf-8')
+                  data = json.loads(content)
+              except Exception:
+                  continue
+              queue = data.get('queue') or []
+              changed = False
+              for m in queue:
+                  if m.get('sent'):
+                      continue
+                  if not (m.get('to') and m.get('subject')):
+                      continue
+                  # 古すぎる依頼（30分超）は誤送信防止のためスキップ（送信済み扱いにして再送も防ぐ）
+                  if now - (m.get('ts') or 0) > 30 * 60 * 1000:
+                      m['sent'] = True
+                      m['skipped'] = 'expired'
+                      changed = True
+                      continue
+                  if server is None:
+                      server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+                      server.starttls()
+                      server.login(user, pw)
+                  msg = MIMEText(m.get('body') or '', 'plain', 'utf-8')
+                  msg['Subject'] = m['subject']
+                  msg['From'] = user
+                  msg['To'] = m['to']
+                  msg['Date'] = formatdate(localtime=True)
+                  server.sendmail(user, [m['to']], msg.as_string())
+                  m['sent'] = True
+                  m['sentAt'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+                  changed = True
+                  sent_total += 1
+              if changed:
+                  body = json.dumps({'files': {'fax_outbox.json': {'content': json.dumps({'queue': queue[-10:]}, ensure_ascii=False)}}}).encode()
+                  api('https://api.github.com/gists/' + g['id'], data=body, method='PATCH')
+          if server is not None:
+              server.quit()
+          print('sent:', sent_total)
+          PYEOF
