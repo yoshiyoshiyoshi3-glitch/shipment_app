@@ -596,8 +596,8 @@
       <input type="email" id="fax_send_addr" class="settings-input" placeholder="例：xxxxx@toones.email-fax.jp（発行されたアドレス）">
       <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
         「秒速FAX送信」の管理画面［送信アドレス管理］で発行した<strong>送信用メールアドレス</strong>を入力します。<br>
-        「FAXで送る」を押すと、<strong>件名＝相手先FAX番号／本文＝伝票内容</strong>のメールを自動で送ります（PCのサーバー起動時）。<br>
-        &#x1F4F1; スマホでは <strong>Gmailの作成画面</strong>が自動で開きます（宛先・件名・本文入り）。<strong>初回のみ</strong> Gmail作成画面の右下「︙」→「<strong>プレーンテキストモード</strong>」をONにしてください（以後は記憶されます）。<br>
+        「FAXで送る」を押すと、<strong>件名＝相手先FAX番号／本文＝伝票内容</strong>のテキスト形式メールを自動で送ります。<br>
+        &#x1F4BB; PC（サーバー起動中）：その場で送信　&#x1F4F1; スマホ：クラウド経由で約1分以内に自動送信（GitHubトークンの設定が必要）<br>
         ※ 相手先FAX番号は、各市場の「FAX番号」欄に <strong>市外局番から</strong> 登録してください。
       </div>
     </div>
@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-2345';
+var APP_VERSION='20260613-0003';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3283,6 +3283,30 @@ function sendMarketEmail(market,mi){
     setStatus('CSVをダウンロードしました（⑤設定でメールアドレスを登録するとメーラーも自動で開きます）','ok');
   }
 }
+// クラウド（GitHub Actions）経由でテキスト形式のFAXメールを送る（スマホ単体用）。
+// 同期用Gistの fax_outbox.json に送信依頼を書き、リポジトリの sendfax ワークフローを起動する。
+// 実際の送信はクラウド上で text/plain のみのメールとして行われる（秒速FAXの要件を満たす）。
+var GH_REPO='yoshiyoshiyoshi3-glitch/shipment_app';
+function _sendFaxViaCloud(to,subject,body){
+  var tok='';try{tok=localStorage.getItem('githubToken')||'';}catch(e){}
+  if(!tok)return Promise.reject(new Error('GitHubトークンが未設定です（⑥設定のデータ同期で登録してください）'));
+  var ensure=_gistId?Promise.resolve(_gistId):_discoverGistId();
+  return ensure.then(function(gid){
+    if(!gid)throw new Error('同期データが見つかりません（⑥設定で「送信」を一度実行してください）');
+    var item={to:to,subject:subject,body:body,ts:Date.now(),sent:false};
+    return fetch('https://api.github.com/gists/'+gid,{method:'PATCH',
+      headers:{'Authorization':'token '+tok,'Content-Type':'application/json'},
+      body:JSON.stringify({files:{'fax_outbox.json':{content:JSON.stringify({queue:[item]})}}})});
+  }).then(function(r){
+    if(!r.ok)throw new Error('送信依頼の書き込みに失敗（HTTP '+r.status+'）');
+    return fetch('https://api.github.com/repos/'+GH_REPO+'/actions/workflows/sendfax.yml/dispatches',{
+      method:'POST',
+      headers:{'Authorization':'token '+tok,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+      body:JSON.stringify({ref:'main'})});
+  }).then(function(r){
+    if(r.status!==204)throw new Error('クラウド送信の起動に失敗（HTTP '+r.status+'）。トークンの権限（repo・workflow）をご確認ください');
+  });
+}
 // 秒速FAX送信（メール送信）で伝票を送る。
 // 宛先＝発行された送信用メールアドレス／件名＝相手先FAX番号（市外局番から半角・ハイフンなし）／本文＝伝票内容。
 // ※ 秒速FAXは本文テキストをそのままFAX化できる。メールでは添付を自動化できず（スマホ不可）、
@@ -3324,19 +3348,19 @@ function sendMarketFax(market,mi){
       setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信しました（'+sendAddr+'）','ok');
     })
     .catch(function(e){
-      // サーバー未起動（スマホ単体）→ GmailのWeb作成画面を、宛先・件名・本文入りで開く。
-      // Gmailで「プレーンテキストモード」をONにしておけばテキスト形式で送れる（設定は記憶される）。
-      var go=confirm('Gmailの作成画面を開きます。\n宛先・件名（FAX番号）・本文は自動で入ります。そのまま送信してください。\n\n'+
-        '※ 初回のみ：Gmail作成画面の右下「︙」→「プレーンテキストモード」をONにしてください。\n'+
-        '（HTML形式のままだとFAXが失敗します。一度ONにすれば次回からずっと有効です）');
-      if(go){
-        var gmailUrl='https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(sendAddr)+'&su='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
-        var win=null;try{win=window.open(gmailUrl,'_blank');}catch(err){}
-        if(!win)window.location.href=gmailUrl;
-        setStatus(market+'（FAX '+faxNo+'）：Gmailを開きました。「プレーンテキストモード」を確認して送信してください','ok');
-      }else{
-        setStatus('FAX送信を中止しました（PCのアプリから送ると確実です）','error');
-      }
+      // PCサーバーが無い（スマホ単体）→ クラウド（GitHub Actions）からテキスト形式で自動送信。
+      // ※ GmailのWeb作成画面はスマホだとリダイレクトループになるため廃止した。
+      setStatus(market+'（FAX '+faxNo+'）をクラウド経由で送信中…');
+      _sendFaxViaCloud(sendAddr,faxNo,body)
+        .then(function(){
+          setStatus(market+'（FAX '+faxNo+'）の送信を受け付けました。約1分以内にテキスト形式でFAXメールが送られます','ok');
+        })
+        .catch(function(e2){
+          alert('FAXを送信できませんでした。\n\n'+
+            '・PCの「アプリ起動API.bat」を起動してPCから送るか、\n'+
+            '・⑥設定の「GitHubトークン」が新しいトークンになっているか確認してください。\n\n詳細: '+((e2&&e2.message)||e2));
+          setStatus('FAX送信に失敗しました','error');
+        });
     });
 }
 function sendAllMarketsEmail(){
