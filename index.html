@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-1837';
+var APP_VERSION='20260612-1920';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -4704,6 +4704,27 @@ var _gistId='';
   _gistId=localStorage.getItem('gistId')||'';
 })();
 
+// 出荷履歴（統計の元データ）を端末間で結合する。
+// id重複は新しい保存（savedAt）を優先。新しい順に並べ、1年より古いものは除外。
+function _mergeHistArrays(a,b){
+  var map={};
+  (a||[]).concat(b||[]).forEach(function(r){
+    if(!r||r.id==null)return;
+    var k=String(r.id),cur=map[k];
+    if(!cur){map[k]=r;return;}
+    // 同一idが両方にある場合は savedAt が新しい方を採用
+    var rt=Date.parse(r.savedAt||'')||0, ct=Date.parse(cur.savedAt||'')||0;
+    if(rt>=ct)map[k]=r;
+  });
+  var cutoff=Date.now()-365*24*60*60*1000;
+  return Object.keys(map).map(function(k){return map[k];})
+    .filter(function(r){return Number(r.id)>cutoff;})
+    .sort(function(x,y){return Number(y.id)-Number(x.id);});
+}
+function _readLocalHistory(){
+  try{var a=JSON.parse(localStorage.getItem('shipHistory')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}
+}
+
 function _getSyncData(){
   var data={};
   SYNC_KEYS.forEach(function(k){
@@ -4717,10 +4738,16 @@ function _getSyncData(){
 function _applyGistData(data){
   var updated=false;
   SYNC_KEYS.forEach(function(k){
-    if(data[k]!==undefined){
-      var val=typeof data[k]==='string'?data[k]:JSON.stringify(data[k]);
-      if(localStorage.getItem(k)!==val){localStorage.setItem(k,val);updated=true;}
+    if(data[k]===undefined)return;
+    if(k==='shipHistory'){
+      // 統計データは上書きせず結合（他端末の出荷履歴を残す）
+      var remoteArr=Array.isArray(data[k])?data[k]:[];
+      var merged=JSON.stringify(_mergeHistArrays(_readLocalHistory(),remoteArr));
+      if(localStorage.getItem('shipHistory')!==merged){localStorage.setItem('shipHistory',merged);updated=true;}
+      return;
     }
+    var val=typeof data[k]==='string'?data[k]:JSON.stringify(data[k]);
+    if(localStorage.getItem(k)!==val){localStorage.setItem(k,val);updated=true;}
   });
   return updated;
 }
@@ -4755,22 +4782,42 @@ function saveGistToken(){
 
 function _pushToGistInternal(showMsg){
   if(!_gistToken){return Promise.resolve();}
-  var content=JSON.stringify(_getSyncData(),null,2);
-  var body={description:'SakaiFloric App Data',public:false,
-    files:{'sakai_floric_data.json':{content:content}}};
-  var url=_gistId?'https://api.github.com/gists/'+_gistId:'https://api.github.com/gists';
-  var method=_gistId?'PATCH':'POST';
-  return fetch(url,{method:method,
-    headers:{'Authorization':'token '+_gistToken,'Content-Type':'application/json'},
-    body:JSON.stringify(body)})
-    .then(function(r){return r.json();})
-    .then(function(g){
-      if(g.id){_gistId=g.id;localStorage.setItem('gistId',_gistId);}
-      if(showMsg)_setGistStatus('✓ データを送信しました（'+new Date().toLocaleTimeString('ja-JP')+'）','#7a9e82');
-    })
-    .catch(function(e){
-      if(showMsg)_setGistStatus('✗ 送信失敗: '+e.message,'#d45050');
-    });
+  // 送信前に、既存Gistの出荷履歴と結合しておく（他端末の統計データを上書きで消さないため）
+  var prep=_gistId
+    ? fetch('https://api.github.com/gists/'+_gistId,{headers:{'Authorization':'token '+_gistToken}})
+        .then(function(r){return r.json();})
+        .then(function(g){
+          try{
+            var f=g.files&&g.files['sakai_floric_data.json'];
+            if(f){
+              var remote=JSON.parse(f.content);
+              if(remote&&remote.shipHistory!==undefined){
+                var remoteArr=Array.isArray(remote.shipHistory)?remote.shipHistory:[];
+                localStorage.setItem('shipHistory',JSON.stringify(_mergeHistArrays(_readLocalHistory(),remoteArr)));
+              }
+            }
+          }catch(e){}
+        })
+        .catch(function(){})
+    : Promise.resolve();
+  return prep.then(function(){
+    var content=JSON.stringify(_getSyncData(),null,2);
+    var body={description:'SakaiFloric App Data',public:false,
+      files:{'sakai_floric_data.json':{content:content}}};
+    var url=_gistId?'https://api.github.com/gists/'+_gistId:'https://api.github.com/gists';
+    var method=_gistId?'PATCH':'POST';
+    return fetch(url,{method:method,
+      headers:{'Authorization':'token '+_gistToken,'Content-Type':'application/json'},
+      body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .then(function(g){
+        if(g.id){_gistId=g.id;localStorage.setItem('gistId',_gistId);}
+        if(showMsg)_setGistStatus('✓ データを送信しました（'+new Date().toLocaleTimeString('ja-JP')+'）','#7a9e82');
+      })
+      .catch(function(e){
+        if(showMsg)_setGistStatus('✗ 送信失敗: '+e.message,'#d45050');
+      });
+  });
 }
 
 function _pullFromGistInternal(showMsg){
