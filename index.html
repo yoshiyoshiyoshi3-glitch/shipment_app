@@ -314,6 +314,10 @@
 </div>
 <button class="fab-mic" id="fabMic" aria-label="音声入力（押している間だけ録音）">&#x1F3A4;</button>
 <div id="step1" class="tab-panel active">
+  <div id="draftRestoredBanner" style="display:none;background:#eef7ee;border:1px solid #9cc39c;border-radius:8px;padding:10px 13px;margin-bottom:10px;font-size:13px;color:#33691e;line-height:1.6">
+    <button onclick="this.parentNode.style.display='none'" style="float:right;background:none;border:none;font-size:18px;cursor:pointer;color:#888;line-height:1">&times;</button>
+    <span>&#x2705; <strong>前回の入力途中のデータを自動で復元しました。</strong><span id="draftRestoredInfo" style="font-size:11px;color:#558b2f"></span><br>続きから入力できます。新しく始める場合は「&#x1F5D1; クリア」を押してください。</span>
+  </div>
   <div class="quick-voice">
     <p>例：<strong>「トルコキキョウ ボヤージュグリーン 30本 2箱」</strong><br>
        2品目目以降は品目名省略可 → 例：<strong>「シグナルグリーン 20本」</strong><br>
@@ -1332,7 +1336,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260611-0902';
+var APP_VERSION='20260612-1826';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1461,6 +1465,8 @@ window.addEventListener('load',function(){
     var el=document.getElementById(pid);
     if(el){el.addEventListener('change',scheduleDraftBackup);el.addEventListener('input',scheduleDraftBackup);}
   });
+  // 起動時、入力途中データが残っていれば自動復元（誤って閉じても消えない）
+  autoRestoreDraftOnLoad();
   // 起動時、保存データがあれば伝票出力画面の復元案内を反映
   updateRestoreDraftBox();
 });
@@ -2182,6 +2188,7 @@ function backupDraftNow(){
     var d=collectDraftBackup();
     if(!d.items.length)return; // 空のときは上書きしない（クリア後も直前の入力を残す）
     localStorage.setItem('draftBackup',JSON.stringify(d));
+    localStorage.removeItem('draftCleared'); // 新たな入力があったので自動復元を再び有効化
   }catch(e){}
 }
 function scheduleDraftBackup(){clearTimeout(_draftSaveTimer);_draftSaveTimer=setTimeout(backupDraftNow,700);}
@@ -2203,6 +2210,27 @@ function restoreDraftBackup(){
   updateRestoreDraftBox();
   setStatus('入力データを復元しました（'+d.items.length+'品目）。内容をご確認ください','ok');
   showTab('step1');
+}
+// アプリ再起動時：入力途中データが残っていれば自動で復元する（閉じても消えない）
+function autoRestoreDraftOnLoad(){
+  try{
+    var cur=getItems().filter(_draftHasContent);
+    if(cur.length)return; // すでに入力がある場合は何もしない
+    if(localStorage.getItem('draftCleared')==='1')return; // 意図的にクリアされた直後は自動復元しない
+    var d=loadDraftBackup();
+    if(!d||!d.items||!d.items.length)return;
+    if(d.date){var de=document.getElementById('shipDate');if(de)de.value=d.date;}
+    if(d.producer){var pe=document.getElementById('producerName');if(pe)pe.value=d.producer;}
+    d.items.forEach(function(it){addItem(it);});
+    updateItemSummaries();
+    if(typeof updateLastNameHint==='function')updateLastNameHint();
+    var banner=document.getElementById('draftRestoredBanner');
+    if(banner){
+      var info=document.getElementById('draftRestoredInfo');
+      if(info)info.textContent='（'+d.items.length+'品目・'+_fmtDraftTime(d.savedAt)+' 時点）';
+      banner.style.display='block';
+    }
+  }catch(e){}
 }
 function updateRestoreDraftBox(){
   var box=document.getElementById('restoreDraftBox');if(!box)return;
@@ -2619,6 +2647,7 @@ function buildDistPreview(){
 function reApplyDist(){
   var items=getItems().filter(function(it){return it.name;});
   if(!items.length){setStatus('品目がありません','error');return;}
+  _pendingDistOverride=null; // 明示的な再振り分けなので復元値は破棄
   buildDistTable(items);
   setStatus('設定にもとづいて再振り分けしました','ok');
 }
@@ -2652,6 +2681,7 @@ function _orderMarketIndex(note){
 function _distSig(items){
   return items.map(function(i){return i.id+'|'+(i.note||'')+'|'+(i.boxes||'')+'|'+(i.count||'');}).join(',');
 }
+var _pendingDistOverride=null; // 履歴復元時の市場別箱数 {itemId:{市場名:箱数}}
 function buildDistTable(items){
   lastBuiltItemIds=_distSig(items);
   var thead=document.getElementById('distHead');
@@ -2663,9 +2693,15 @@ function buildDistTable(items){
     var totalStems=stemsPerBox*totalBoxes;
     var stemUnit=(it.count||'').replace(/[\d]/g,'').trim()||'本';
     var distVals=calcRatioDist(totalBoxes,getSyncedDistSettings());
-    // 注文〇〇がある場合は対象市場に全数固定
-    var _orderMi=_orderMarketIndex(it.note);
-    if(_orderMi>=0){distVals=MARKETS.map(function(m,_mi2){return _mi2===_orderMi?totalBoxes:0;});}
+    // 履歴復元などで保存済みの市場振り分けがあれば、それを優先して復元する
+    var _ov=_pendingDistOverride&&_pendingDistOverride[it.id];
+    if(_ov){
+      distVals=MARKETS.map(function(m,_mi3){return parseInt(_ov[m])||0;});
+    }else{
+      // 注文〇〇がある場合は対象市場に全数固定
+      var _orderMi=_orderMarketIndex(it.note);
+      if(_orderMi>=0){distVals=MARKETS.map(function(m,_mi2){return _mi2===_orderMi?totalBoxes:0;});}
+    }
     var tr=document.createElement('tr'); tr.id='drow_'+it.id;
     tr.dataset.total=totalBoxes; tr.dataset.stems=totalStems; tr.dataset.stemunit=stemUnit; tr.dataset.id=it.id;
     var gradeLabel=it.grade==='外'?'<span class="badge ext">外</span>':'<span class="badge">'+it.grade+'</span>';
@@ -3297,6 +3333,9 @@ function completeShipment(){
   autoRegisterMaster(distData);
   pushToServer();
   var b=document.getElementById('savedBanner');if(b){b.style.display='block';setTimeout(function(){b.style.display='none';},4000);}
+  // 出荷完了した分は履歴に保存されたので、入力途中バックアップは消す（再起動時に蒸し返さない）
+  try{localStorage.removeItem('draftBackup');localStorage.removeItem('draftCleared');}catch(e){}
+  updateRestoreDraftBox();
   setStatus('出荷データを保存しました','ok');
   _lastShipment={distData:distData,date:date,producer:producer};
   showSendPanel(distData,date,producer);
@@ -3994,6 +4033,7 @@ function restoreHistRecord(id){
   itemCount=0; lastBuiltItemIds='';
   var cont=document.getElementById('itemsContainer');
   if(cont)cont.innerHTML='';
+  var distOverride={}; // 復元する市場別箱数 {新しい品目ID:{市場名:箱数}}
   (r.items||[]).forEach(function(it){
     // 合計箱数を求める（totalBoxes優先。古いデータは市場別箱数を合計）
     var totalBoxes=it.totalBoxes;
@@ -4005,7 +4045,7 @@ function restoreHistRecord(id){
       }
     }
     var stemUnit=it.stemUnit||'本';
-    addItem({
+    var newId=addItem({
       name:  it.name||'',
       variety: it.variety||'',
       grade: it.grade||'A',
@@ -4015,10 +4055,28 @@ function restoreHistRecord(id){
       count: it.perBox?(it.perBox+stemUnit):'',
       boxes: totalBoxes?(totalBoxes+'箱'):''
     });
+    // 保存されていた市場別箱数を控える（市場名でひも付け）
+    var mkMap={};
+    if(it.markets&&it.markets.length){
+      it.markets.forEach(function(m){mkMap[m.market]=parseInt(m.boxes)||0;});
+    } else if(it.marketBoxes&&it.marketBoxes.length){
+      MARKETS.forEach(function(mname,mi){mkMap[mname]=parseInt(it.marketBoxes[mi])||0;});
+    }
+    distOverride[newId]=mkMap;
     updateItemSummaries&&updateItemSummaries();
   });
+  // 市場振り分けも復元する（保存値で振分け表を作る）
+  var restoredItems=getItems().filter(function(it){return it.name;});
+  var hasDist=Object.keys(distOverride).some(function(k){return Object.keys(distOverride[k]).length;});
+  if(restoredItems.length&&hasDist){
+    _pendingDistOverride=distOverride;
+    buildDistTable(restoredItems);
+    if(typeof buildDistPreview==='function')buildDistPreview();
+  }else{
+    _pendingDistOverride=null;
+  }
   showTab('step1');
-  setStatus('「'+r.date+'」の出荷データを復元しました。内容を確認してください。','ok');
+  setStatus('「'+r.date+'」の出荷データ（市場振り分けを含む）を復元しました。内容を確認してください。','ok');
 }
 function toggleHistDetail(el){
   var id=el.dataset.target;
@@ -4036,6 +4094,7 @@ function toggleHistDetail(el){
 function clearAll(){
   if(!confirm('すべての入力をクリアしますか？'))return;
   backupDraftNow(); // クリア前の内容を保存しておく（伝票出力画面の「復元」で戻せる）
+  _pendingDistOverride=null;
   var d=new Date();var mm=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');
   var dateEl=document.getElementById('shipDate');
   if(dateEl)dateEl.value=d.getFullYear()+'-'+mm+'-'+dd;
@@ -4045,6 +4104,7 @@ function clearAll(){
   itemCount=0;lastBuiltItemIds='';lastUsedName='';
   updateLastNameHint();
   updateRestoreDraftBox();
+  try{localStorage.setItem('draftCleared','1');}catch(e){} // 意図的なクリア：次回起動では自動復元しない（手動の復元ボタンは有効）
   setStatus('クリアしました');
 }
 function resaveToFolder(){
