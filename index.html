@@ -596,8 +596,7 @@
       <input type="email" id="fax_send_addr" class="settings-input" placeholder="例：xxxxx@toones.email-fax.jp（発行されたアドレス）">
       <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
         「秒速FAX送信」の管理画面［送信アドレス管理］で発行した<strong>送信用メールアドレス</strong>を入力します。<br>
-        「FAXで送る」を押すと、伝票のPDF画面が開き、このアドレス宛に <strong>件名＝相手先FAX番号／本文＝空</strong> のメールが作られます。<br>
-        伝票を <strong>「PDFとして保存」→ メールに添付</strong> して送信すると、FAXとして届きます（秒速FAXはPDF推奨）。<br>
+        「FAXで送る」を押すと、このアドレス宛に <strong>件名＝相手先FAX番号／本文＝伝票内容</strong> のメールが作られます。そのまま送信すると、本文がFAXとして届きます。<br>
         ※ 相手先FAX番号は、各市場の「FAX番号」欄に <strong>市外局番から</strong> 登録してください。
       </div>
     </div>
@@ -1342,7 +1341,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-1920';
+var APP_VERSION='20260612-1932';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2765,11 +2764,19 @@ function stepDist(itemId,mi,delta){
   var v=(parseInt(el.value,10)||0)+delta;
   if(v<0)v=0;
   el.value=v;
-  // 履歴復元中の保存値があれば、手動調整も反映して保持する
-  if(_pendingDistOverride&&_pendingDistOverride[itemId]&&MARKETS[mi]!=null){
-    _pendingDistOverride[itemId][MARKETS[mi]]=v;
-  }
   updateRemaining(itemId);
+}
+// 手動で調整した市場振り分けを保持する（再描画・画面移動で消えないよう override に取り込む）
+function _captureManualDist(){
+  if(!MARKETS||!MARKETS.length)return;
+  var ov={};
+  Array.prototype.forEach.call(document.querySelectorAll('#distBody tr'),function(tr){
+    var id=tr.dataset.id; if(!id)return;
+    var m={};
+    MARKETS.forEach(function(mk,mi){var el=document.getElementById('d_'+id+'_'+mi);m[mk]=parseInt(el?el.value:0)||0;});
+    ov[id]=m;
+  });
+  if(Object.keys(ov).length)_pendingDistOverride=ov;
 }
 function updateRemaining(itemId){
   var row=document.getElementById('drow_'+itemId);if(!row)return;
@@ -2781,6 +2788,7 @@ function updateRemaining(itemId){
   var rem=total-used,cell=document.getElementById('rem_'+itemId);
   if(cell){cell.innerHTML=rem+'<span class="unit-label">箱</span>';cell.className='remaining'+(rem===0?' zero':rem<0?' negative':'');}
   updateDistFoot();
+  _captureManualDist(); // 手動調整を保持
 }
 function getDistData(){
   return getItems().filter(function(it){return it.name;}).map(function(it){
@@ -3165,8 +3173,9 @@ function sendMarketEmail(market,mi){
   }
 }
 // 秒速FAX送信（メール送信）で伝票を送る。
-// 宛先＝発行された送信用メールアドレス／件名＝相手先FAX番号（市外局番から半角・ハイフンなし）。
-// 本文は空にし、伝票PDFを添付して送る（秒速FAXはPDF推奨）。
+// 宛先＝発行された送信用メールアドレス／件名＝相手先FAX番号（市外局番から半角・ハイフンなし）／本文＝伝票内容。
+// ※ 秒速FAXは本文テキストをそのままFAX化できる。メールでは添付を自動化できず（スマホ不可）、
+//    印刷画面を開く方式はアプリが落ちる原因になるため、本文テキストで送る方式にしている。
 function sendMarketFax(market,mi){
   var fax=getMarketFax(market);
   var sendAddr=loadFaxSendAddr();
@@ -3174,15 +3183,25 @@ function sendMarketFax(market,mi){
   if(!sendAddr){setStatus('秒速FAX送信の送信用メールアドレスが未登録です（⑤設定で入力してください）','error');return;}
   var faxNo=buildFaxNumber(fax);
   if(!faxNo){setStatus(market+'のFAX番号が正しくありません（市外局番から半角数字でご登録ください）','error');return;}
+  var date=document.getElementById('shipDate').value;
+  var producer=document.getElementById('producerName').value;
   var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
-  // 伝票PDF（印刷画面）を開く → 「PDFとして保存」して添付してもらう
-  exportMarketPDF(market,mi);
-  // 秒速FAX送信の仕様：件名は相手先FAX番号「のみ」、宛先は発行された送信用アドレス、本文は空。
-  setTimeout(function(){
-    window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo);
-  },500);
-  setStatus(market+'（FAX '+faxNo+'）：開いた伝票を「PDFとして保存」し、続いて開くメールにそのPDFを添付して送信してください（本文は空のままでOK）','ok');
+  var pinfo=loadProducerInfo();
+  var pcode=getProducerCode(market);
+  var bodyLines=['出荷伝票','市場名：'+market,'出荷日：'+date,'生産者：'+producer];
+  if(pinfo.addr)bodyLines.push('住所：'+pinfo.addr);
+  if(pinfo.tel)bodyLines.push('電話：'+pinfo.tel);
+  if(pcode)bodyLines.push('生産者コード：'+pcode);
+  bodyLines.push('','■ 品目一覧');
+  items.forEach(function(it){
+    bodyLines.push(it.name+(it.variety?' '+it.variety:'')+' '+it.grade+' '+(it.size?it.size+'cm ':'')+it.marketBoxes[mi]+'箱'+(it.perBox>0?' '+it.perBox+it.stemUnit+'/箱':'')+(it.note?' 備考:'+it.note:''));
+  });
+  var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
+  var body=bodyLines.join('\n');
+  // 秒速FAX送信の仕様：件名は相手先FAX番号「のみ」、宛先は発行された送信用アドレス、本文がFAX内容になる。
+  window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
+  setStatus(market+'（FAX '+faxNo+'）への送信メールを開きました。件名の番号はそのまま、本文を確認して送信してください','ok');
 }
 function sendAllMarketsEmail(){
   var date=document.getElementById('shipDate').value;
