@@ -1341,7 +1341,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-1953';
+var APP_VERSION='20260612-2011';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1471,6 +1471,7 @@ window.addEventListener('load',function(){
     if(el){el.addEventListener('change',scheduleDraftBackup);el.addEventListener('input',scheduleDraftBackup);}
   });
   // 起動時、入力途中データが残っていれば自動復元（誤って閉じても消えない）
+  initMarkets(); // 市場名を確定させてから復元（振り分けの市場ひも付けのため）
   autoRestoreDraftOnLoad();
   // 起動時、保存データがあれば伝票出力画面の復元案内を反映
   updateRestoreDraftBox();
@@ -2183,10 +2184,34 @@ var _draftSaveTimer=null;
 function _draftHasContent(it){return !!(it.name||it.variety||it.size||it.count||it.boxes||it.note);}
 function collectDraftBackup(){
   var items=getItems().filter(_draftHasContent).map(function(it){
-    return{name:it.name,variety:it.variety,grade:it.grade,size:it.size,count:it.count,boxes:it.boxes,rings:it.rings,note:it.note};
+    // 振り分け表があれば、市場別箱数も一緒に保存（市場名でひも付け）
+    var markets=null;
+    if(MARKETS&&MARKETS.length){
+      var any=false,m={};
+      MARKETS.forEach(function(mk,mi){
+        var el=document.getElementById('d_'+it.id+'_'+mi);
+        if(el){m[mk]=parseInt(el.value)||0;any=true;}
+      });
+      if(any)markets=m;
+    }
+    return{name:it.name,variety:it.variety,grade:it.grade,size:it.size,count:it.count,boxes:it.boxes,rings:it.rings,note:it.note,markets:markets};
   });
   var de=document.getElementById('shipDate'),pe=document.getElementById('producerName');
   return{date:de?de.value:'',producer:pe?pe.value:'',items:items,savedAt:Date.now()};
+}
+// 復元した品目に、保存されていた市場別箱数（振り分け）を反映する
+function _applyDraftDistribution(d){
+  var hasDist=(d.items||[]).some(function(it){return it.markets&&Object.keys(it.markets).length;});
+  if(!hasDist){_pendingDistOverride=null;return;}
+  var items=getItems().filter(function(it){return it.name;});
+  var ov={};
+  items.forEach(function(it,idx){
+    var src=d.items[idx];
+    if(src&&src.markets)ov[it.id]=src.markets;
+  });
+  _pendingDistOverride=ov;
+  buildDistTable(items);
+  if(typeof buildDistPreview==='function')buildDistPreview();
 }
 function backupDraftNow(){
   try{
@@ -2194,9 +2219,17 @@ function backupDraftNow(){
     if(!d.items.length)return; // 空のときは上書きしない（クリア後も直前の入力を残す）
     localStorage.setItem('draftBackup',JSON.stringify(d));
     localStorage.removeItem('draftCleared'); // 新たな入力があったので自動復元を再び有効化
+    _scheduleDraftGistPush(); // 入力途中データをクラウドにも反映（別端末で受信できるように）
   }catch(e){}
 }
 function scheduleDraftBackup(){clearTimeout(_draftSaveTimer);_draftSaveTimer=setTimeout(backupDraftNow,700);}
+// 入力途中データを少し間をおいてGistへ自動送信（トークン設定時のみ）
+var _draftGistTimer=null;
+function _scheduleDraftGistPush(){
+  try{if(!localStorage.getItem('githubToken'))return;}catch(e){return;}
+  clearTimeout(_draftGistTimer);
+  _draftGistTimer=setTimeout(function(){if(typeof _pushToGistInternal==='function')_pushToGistInternal(false);},4000);
+}
 function loadDraftBackup(){try{return JSON.parse(localStorage.getItem('draftBackup'));}catch(e){return null;}}
 function hasDraftBackup(){var d=loadDraftBackup();return !!(d&&d.items&&d.items.length);}
 function _fmtDraftTime(ts){try{var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0');};return p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
@@ -2212,8 +2245,9 @@ function restoreDraftBackup(){
   d.items.forEach(function(it){addItem(it);});
   updateItemSummaries();
   if(typeof updateLastNameHint==='function')updateLastNameHint();
+  _applyDraftDistribution(d); // 市場振り分けも復元
   updateRestoreDraftBox();
-  setStatus('入力データを復元しました（'+d.items.length+'品目）。内容をご確認ください','ok');
+  setStatus('入力データを復元しました（'+d.items.length+'品目・市場振り分けを含む）。内容をご確認ください','ok');
   showTab('step1');
 }
 // アプリ再起動時：入力途中データが残っていれば自動で復元する（閉じても消えない）
@@ -2229,6 +2263,7 @@ function autoRestoreDraftOnLoad(){
     d.items.forEach(function(it){addItem(it);});
     updateItemSummaries();
     if(typeof updateLastNameHint==='function')updateLastNameHint();
+    _applyDraftDistribution(d); // 市場振り分けも復元（別端末で入力した分も含む）
     var banner=document.getElementById('draftRestoredBanner');
     if(banner){
       var info=document.getElementById('draftRestoredInfo');
@@ -2789,6 +2824,7 @@ function updateRemaining(itemId){
   if(cell){cell.innerHTML=rem+'<span class="unit-label">箱</span>';cell.className='remaining'+(rem===0?' zero':rem<0?' negative':'');}
   updateDistFoot();
   _captureManualDist(); // 手動調整を保持
+  scheduleDraftBackup(); // 振り分けの変更も保存・同期する
 }
 function getDistData(){
   return getItems().filter(function(it){return it.name;}).map(function(it){
@@ -4736,7 +4772,7 @@ function drawChart(type,settlements){
   });
 }
 // ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
-var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxSendAddr'];
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxSendAddr','draftBackup'];
 var _gistToken='';
 var _gistId='';
 
@@ -4787,6 +4823,21 @@ function _applyGistData(data){
       if(localStorage.getItem('shipHistory')!==merged){localStorage.setItem('shipHistory',merged);updated=true;}
       return;
     }
+    if(k==='draftBackup'){
+      // 入力途中の伝票は、より新しい方（savedAtが大きい方）を採用する
+      var remoteD=data[k];
+      var localD=null;try{localD=JSON.parse(localStorage.getItem('draftBackup'));}catch(e){}
+      var rt=(remoteD&&remoteD.savedAt)||0, lt=(localD&&localD.savedAt)||0;
+      if(remoteD&&rt>lt){
+        var rv=JSON.stringify(remoteD);
+        if(localStorage.getItem('draftBackup')!==rv){
+          localStorage.setItem('draftBackup',rv);
+          localStorage.removeItem('draftCleared'); // 別端末から新しい入力が来た → 自動復元を有効化
+          updated=true;
+        }
+      }
+      return;
+    }
     var val=typeof data[k]==='string'?data[k]:JSON.stringify(data[k]);
     if(localStorage.getItem(k)!==val){localStorage.setItem(k,val);updated=true;}
   });
@@ -4796,6 +4847,23 @@ function _applyGistData(data){
 function _setGistStatus(msg,color){
   var el=document.getElementById('gistStatus');
   if(el){el.textContent=msg;el.style.color=color||'var(--text-mid)';}
+}
+
+// 既存の同期Gist（sakai_floric_data.json を含む）を、同じトークンで検索して特定する。
+// これが無いと、別端末（PC）はGist IDを知らず「受信」できない＝同期できない。
+function _discoverGistId(){
+  if(!_gistToken)return Promise.resolve(null);
+  return fetch('https://api.github.com/gists?per_page=100',{headers:{'Authorization':'token '+_gistToken}})
+    .then(function(r){return r.json();})
+    .then(function(list){
+      if(!Array.isArray(list))return null;
+      var cands=list.filter(function(g){return g.files&&g.files['sakai_floric_data.json'];});
+      if(!cands.length)return null;
+      cands.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);}); // 最新更新を優先
+      _gistId=cands[0].id;localStorage.setItem('gistId',_gistId);
+      return _gistId;
+    })
+    .catch(function(){return null;});
 }
 
 function saveGistToken(){
@@ -4810,8 +4878,12 @@ function saveGistToken(){
     .then(function(r){return r.json();})
     .then(function(u){
       if(u.login){
-        if(st){st.textContent='✓ 接続OK（'+u.login+'）';st.style.color='#7a9e82';}
-        _setGistStatus('トークンを保存しました','#7a9e82');
+        if(st){st.textContent='✓ 接続OK（'+u.login+'）。同期データを確認中…';st.style.color='#7a9e82';}
+        // 既存の同期Gistを自動で探して紐づける（別端末でもすぐ「受信」できるように）
+        return _discoverGistId().then(function(gid){
+          if(st){st.textContent=gid?'✓ 接続OK（'+u.login+'）／同期データに接続しました':'✓ 接続OK（'+u.login+'）／このトークンの同期データはまだありません';st.style.color='#7a9e82';}
+          _setGistStatus(gid?'同期に接続しました。「受信」で最新データを取り込めます':'トークンを保存しました','#7a9e82');
+        });
       } else {
         if(st){st.textContent='✗ トークンが無効です';st.style.color='#d45050';}
       }
@@ -4862,8 +4934,13 @@ function _pushToGistInternal(showMsg){
 }
 
 function _pullFromGistInternal(showMsg){
+  // Gist IDが無ければ、まず同じトークンで既存の同期Gistを探す（別端末で受信できるように）
+  var ensure=_gistId?Promise.resolve(_gistId):_discoverGistId();
+  return ensure.then(function(){return _pullFromGistInternalInner(showMsg);});
+}
+function _pullFromGistInternalInner(showMsg){
   if(!_gistId){
-    if(showMsg)_setGistStatus('Gist IDが未設定です。PCで「送信」を先に実行してください','#d45050');
+    if(showMsg)_setGistStatus('同期データが見つかりません。先に別の端末で「送信」してください','#d45050');
     return Promise.resolve();
   }
   var headers=_gistToken?{'Authorization':'token '+_gistToken}:{};
