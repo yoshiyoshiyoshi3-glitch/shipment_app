@@ -168,7 +168,7 @@
 
   /* ── 振り分けテーブル ── */
   .dist-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius-sm)}
-  .dist-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px}
+  .dist-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:600px}
   .dist-table th{background:linear-gradient(180deg,var(--primary),var(--primary-dark));color:#fdf6f2;padding:9px 6px;text-align:center;font-size:12px;white-space:nowrap;font-weight:700;letter-spacing:0.03em}
   .dist-table th:first-child{border-radius:8px 0 0 0}
   .dist-table th:last-child{border-radius:0 8px 0 0}
@@ -180,9 +180,15 @@
   .dist-table td.remaining{text-align:center;font-weight:700;color:#b0a0a0;font-size:12px}
   .dist-table td.remaining.zero{color:var(--sage)}
   .dist-table td.remaining.negative{color:#c84848}
-  .dist-num{width:56px;padding:6px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;text-align:center;background:#fdfaf8;outline:none;transition:border 0.2s,box-shadow 0.2s}
+  .dist-num{width:46px;padding:6px 2px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;text-align:center;background:#fdfaf8;outline:none;transition:border 0.2s,box-shadow 0.2s}
   .dist-num:focus{border-color:var(--rose);background:#fff;box-shadow:0 0 0 3px rgba(184,120,136,0.14)}
   .unit-label{font-size:10px;color:#b8a8a0;margin-left:2px}
+  /* 市場振り分けの ＋／− ボタン（音声が苦手なとき手で調整しやすく）。入力の下にボタンを縦置きして横幅を抑える */
+  .dist-cell{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .dist-btns{display:flex;gap:5px}
+  .dstep{flex:none;width:34px;height:34px;min-width:34px;border:1.5px solid var(--border);border-radius:8px;background:#f6ece8;color:var(--primary);font-size:21px;font-weight:700;line-height:1;cursor:pointer;padding:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;display:flex;align-items:center;justify-content:center}
+  .dstep:active{background:var(--primary);color:#fff;transform:scale(0.94)}
+  .dist-num::-webkit-outer-spin-button,.dist-num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
   /* ── 統計テーブル ── */
   .stat-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
@@ -1336,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-1826';
+var APP_VERSION='20260612-1837';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2711,7 +2717,13 @@ function buildDistTable(items){
     var _noteBadge=it.note?'<span style="background:'+(_orderMi>=0?'#c62828':'#6d8a54')+';color:white;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;margin-left:4px">'+esc(it.note)+'</span>':'';
     var marketCells=MARKETS.map(function(m,mi){
       return '<td style="text-align:center;padding:4px 2px" id="mc_'+it.id+'_'+mi+'">'+
-        '<input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0"><span class="unit-label">箱</span>'+
+        '<div class="dist-cell">'+
+          '<input class="dist-num" id="d_'+it.id+'_'+mi+'" value="'+distVals[mi]+'" oninput="updateRemaining(\''+it.id+'\')" type="number" min="0" inputmode="numeric">'+
+          '<div class="dist-btns">'+
+            '<button type="button" class="dstep" tabindex="-1" aria-label="1箱減らす" onclick="stepDist(\''+it.id+'\','+mi+',-1)">&minus;</button>'+
+            '<button type="button" class="dstep" tabindex="-1" aria-label="1箱増やす" onclick="stepDist(\''+it.id+'\','+mi+',1)">&plus;</button>'+
+          '</div>'+
+        '</div>'+
         '<span class="phys-badge" id="pb_'+it.id+'_'+mi+'"></span>'+
         '</td>';
     }).join('');
@@ -2745,6 +2757,19 @@ function updateDistFoot(){
     return'<td style="text-align:center;font-weight:700;color:#8b6458;font-size:13px;padding:6px 4px">'+txt+'</td>';
   }).join('');
   foot.innerHTML='<tr style="background:#f5ede8"><td class="item-info" colspan="4" style="text-align:right;font-weight:700;color:#8b6458;font-size:12px;padding:6px 8px">各市場 合計 ▶</td>'+cells+'<td></td></tr>';
+}
+// 市場振り分けの ＋／− ボタン（1箱ずつ手で増減）
+function stepDist(itemId,mi,delta){
+  var el=document.getElementById('d_'+itemId+'_'+mi);
+  if(!el)return;
+  var v=(parseInt(el.value,10)||0)+delta;
+  if(v<0)v=0;
+  el.value=v;
+  // 履歴復元中の保存値があれば、手動調整も反映して保持する
+  if(_pendingDistOverride&&_pendingDistOverride[itemId]&&MARKETS[mi]!=null){
+    _pendingDistOverride[itemId][MARKETS[mi]]=v;
+  }
+  updateRemaining(itemId);
 }
 function updateRemaining(itemId){
   var row=document.getElementById('drow_'+itemId);if(!row)return;
