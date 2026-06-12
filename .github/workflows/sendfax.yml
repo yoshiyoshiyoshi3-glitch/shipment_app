@@ -17,8 +17,10 @@ jobs:
           GMAIL_PASS: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
           python3 - <<'PYEOF'
-          import json, os, time, smtplib, urllib.request
+          import json, os, time, smtplib, base64, urllib.request
           from email.mime.text import MIMEText
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.application import MIMEApplication
           from email.utils import formatdate
 
           tok = os.environ['GH_TOKEN']
@@ -62,7 +64,14 @@ jobs:
                       server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
                       server.starttls()
                       server.login(user, pw)
-                  msg = MIMEText(m.get('body') or '', 'plain', 'utf-8')
+                  if m.get('pdf'):
+                      # PDF添付のみ（本文パート無し）。秒速FAXは本文と添付が別ページ課金のためPDFだけ送る。
+                      msg = MIMEMultipart('mixed')
+                      part = MIMEApplication(base64.b64decode(m['pdf']), _subtype='pdf')
+                      part.add_header('Content-Disposition', 'attachment', filename=m.get('filename') or 'fax.pdf')
+                      msg.attach(part)
+                  else:
+                      msg = MIMEText(m.get('body') or '', 'plain', 'utf-8')
                   msg['Subject'] = m['subject']
                   msg['From'] = user
                   msg['To'] = m['to']
@@ -70,10 +79,11 @@ jobs:
                   server.sendmail(user, [m['to']], msg.as_string())
                   m['sent'] = True
                   m['sentAt'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+                  m['pdf'] = ''  # 送信済みPDFはGistから消す（容量節約）
                   changed = True
                   sent_total += 1
               if changed:
-                  body = json.dumps({'files': {'fax_outbox.json': {'content': json.dumps({'queue': queue[-10:]}, ensure_ascii=False)}}}).encode()
+                  body = json.dumps({'files': {'fax_outbox.json': {'content': json.dumps({'queue': queue[-3:]}, ensure_ascii=False)}}}).encode()
                   api('https://api.github.com/gists/' + g['id'], data=body, method='PATCH')
           if server is not None:
               server.quit()
