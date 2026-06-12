@@ -1341,7 +1341,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-1932';
+var APP_VERSION='20260612-1953';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3199,9 +3199,31 @@ function sendMarketFax(market,mi){
   });
   var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
   var body=bodyLines.join('\n');
-  // 秒速FAX送信の仕様：件名は相手先FAX番号「のみ」、宛先は発行された送信用アドレス、本文がFAX内容になる。
-  window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
-  setStatus(market+'（FAX '+faxNo+'）への送信メールを開きました。件名の番号はそのまま、本文を確認して送信してください','ok');
+  // 秒速FAXは「テキスト形式のみ」。mailtoだとメールアプリがHTMLで送ってしまい失敗するため、
+  // まずサーバー（api_server.py）経由でGmail SMTPからtext/plainのメールを送る。
+  // サーバーが使えない場合のみ、メールアプリ（mailto）を開く案内にフォールバックする。
+  setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信中…');
+  fetch(API_BASE+'/api/sendfax',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({to:sendAddr,subject:faxNo,body:body})})
+    .then(function(r){
+      if(!r.ok){return r.json().then(function(j){throw new Error((j&&j.detail)||('HTTP '+r.status));});}
+      return r.json();
+    })
+    .then(function(){
+      setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信しました（'+sendAddr+'）','ok');
+    })
+    .catch(function(e){
+      // サーバー未起動（スマホ単体・GitHub Pages等）→ メールアプリで送る案内
+      var openMail=confirm('FAXのテキスト送信ができませんでした。\n（PCのアプリ／サーバーから送ると確実です）\n\n'+
+        'このままメールアプリを開いて送信しますか？\n'+
+        '※ 秒速FAXは「テキスト形式」のみ対応です。メールアプリが「HTML形式」で送ると失敗します。');
+      if(openMail){
+        window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
+        setStatus(market+'（FAX '+faxNo+'）：メールを開きました。必ず「テキスト形式」で送信してください','ok');
+      }else{
+        setStatus('FAX送信を中止しました（PCのアプリから送ると確実です）','error');
+      }
+    });
 }
 function sendAllMarketsEmail(){
   var date=document.getElementById('shipDate').value;
