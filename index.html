@@ -596,7 +596,7 @@
       <input type="email" id="fax_send_addr" class="settings-input" placeholder="例：xxxxx@toones.email-fax.jp（発行されたアドレス）">
       <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
         「秒速FAX送信」の管理画面［送信アドレス管理］で発行した<strong>送信用メールアドレス</strong>を入力します。<br>
-        「FAXで送る」を押すと、<strong>件名＝相手先FAX番号／本文＝伝票内容</strong>のテキスト形式メールを自動で送ります。<br>
+        「FAXで送る」を押すと、<strong>出荷伝票のPDFを自動生成して添付</strong>し、件名＝相手先FAX番号でFAXメールを送ります（PDFが作れない場合は本文テキストで送信）。<br>
         &#x1F4BB; PC（サーバー起動中）：その場で送信　&#x1F4F1; スマホ：クラウド経由で約1分以内に自動送信（GitHubトークンの設定が必要）<br>
         ※ 相手先FAX番号は、各市場の「FAX番号」欄に <strong>市外局番から</strong> 登録してください。
       </div>
@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260613-0003';
+var APP_VERSION='20260613-0015';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3115,7 +3115,7 @@ function _loadPdfLibs(){
   ]).catch(function(e){_pdfLibsPromise=null;throw e;});
   return _pdfLibsPromise;
 }
-function _downloadPdfFromHtml(fullHtml,filename){
+function _renderPdfFromHtml(fullHtml){
   return _loadPdfLibs().then(function(){
     return new Promise(function(resolve,reject){
       var ifr=document.createElement('iframe');
@@ -3148,14 +3148,25 @@ function _downloadPdfFromHtml(fullHtml,filename){
                 pdf.addImage(pc.toDataURL('image/jpeg',0.92),'JPEG',mLeft,mTop,cw,sliceH*cw/canvas.width);
                 first=false;y+=sliceH;
               }
-              pdf.save(filename);
-              if(!done){done=true;cleanup();resolve();}
+              if(!done){done=true;cleanup();resolve(pdf);}
             }).catch(fail);
           },250);
         }catch(e){fail(e);}
       };
       ifr.srcdoc=fullHtml;
     });
+  });
+}
+function _downloadPdfFromHtml(fullHtml,filename){
+  return _renderPdfFromHtml(fullHtml).then(function(pdf){pdf.save(filename);});
+}
+// 伝票HTMLからPDFを作り、Base64文字列で返す（FAX添付用）
+function _pdfBase64FromHtml(fullHtml){
+  return _renderPdfFromHtml(fullHtml).then(function(pdf){
+    var u8=new Uint8Array(pdf.output('arraybuffer'));
+    var s='';
+    for(var i=0;i<u8.length;i+=8192){s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));}
+    return btoa(s);
   });
 }
 // PDFダウンロード失敗時のフォールバック（PC向け：従来の印刷画面）
@@ -3169,21 +3180,25 @@ function _pdfFallbackWindow(html,okMsg){
     setStatus('PDFを作成できませんでした。通信環境（インターネット接続）をご確認ください','error');
   }
 }
-function exportMarketPDF(market,mi){
+// 市場ごとの伝票HTML（PDFダウンロード・FAX添付の共通部品）
+function _buildMarketSlipHtml(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var items=_sortOrderFirst(getDistData().filter(function(it){return it.marketCounts[mi]>0;}));
-  if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
+  if(!items.length)return null;
   var tbody=items.map(function(it){
     var _rs=it.note&&it.note.indexOf('注文')>=0?' style="background:#fff3f0"':'';
     return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
   }).join('');
   var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
-  var html=buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market);
-  var fname=market+' '+(date||'日付未定')+'.pdf';
+  return {html:buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market), fname:market+' '+(date||'日付未定')+'.pdf'};
+}
+function exportMarketPDF(market,mi){
+  var slip=_buildMarketSlipHtml(market,mi);
+  if(!slip){setStatus(market+'への振り分けがありません','error');return;}
   setStatus(market+'の伝票PDFを作成中…しばらくお待ちください');
-  _downloadPdfFromHtml(html,fname)
-    .then(function(){setStatus(market+'の伝票PDF（'+fname+'）をダウンロードしました','ok');})
-    .catch(function(){_pdfFallbackWindow(html,market+'の伝票を開きました');});
+  _downloadPdfFromHtml(slip.html,slip.fname)
+    .then(function(){setStatus(market+'の伝票PDF（'+slip.fname+'）をダウンロードしました','ok');})
+    .catch(function(){_pdfFallbackWindow(slip.html,market+'の伝票を開きました');});
 }
 function exportAllMarketsPDF(){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
@@ -3287,13 +3302,13 @@ function sendMarketEmail(market,mi){
 // 同期用Gistの fax_outbox.json に送信依頼を書き、リポジトリの sendfax ワークフローを起動する。
 // 実際の送信はクラウド上で text/plain のみのメールとして行われる（秒速FAXの要件を満たす）。
 var GH_REPO='yoshiyoshiyoshi3-glitch/shipment_app';
-function _sendFaxViaCloud(to,subject,body){
+function _sendFaxViaCloud(payload){
   var tok='';try{tok=localStorage.getItem('githubToken')||'';}catch(e){}
   if(!tok)return Promise.reject(new Error('GitHubトークンが未設定です（⑥設定のデータ同期で登録してください）'));
   var ensure=_gistId?Promise.resolve(_gistId):_discoverGistId();
   return ensure.then(function(gid){
     if(!gid)throw new Error('同期データが見つかりません（⑥設定で「送信」を一度実行してください）');
-    var item={to:to,subject:subject,body:body,ts:Date.now(),sent:false};
+    var item={to:payload.to,subject:payload.subject,body:payload.body||'',pdf:payload.pdf||'',filename:payload.filename||'',ts:Date.now(),sent:false};
     return fetch('https://api.github.com/gists/'+gid,{method:'PATCH',
       headers:{'Authorization':'token '+tok,'Content-Type':'application/json'},
       body:JSON.stringify({files:{'fax_outbox.json':{content:JSON.stringify({queue:[item]})}}})});
@@ -3334,26 +3349,36 @@ function sendMarketFax(market,mi){
   });
   var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
   var body=bodyLines.join('\n');
-  // 秒速FAXは「テキスト形式のみ」。mailtoだとメールアプリがHTMLで送ってしまい失敗するため、
-  // まずサーバー（api_server.py）経由でGmail SMTPからtext/plainのメールを送る。
-  // サーバーが使えない場合のみ、メールアプリ（mailto）を開く案内にフォールバックする。
-  setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信中…');
-  fetch(API_BASE+'/api/sendfax',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({to:sendAddr,subject:faxNo,body:body})})
+  // 伝票PDFを生成して「PDF添付」で送る（秒速FAXはPDF推奨・きれいな表のFAXになる）。
+  // PDFが作れない場合（通信不良など）のみ、従来の本文テキストで送る。
+  var slip=_buildMarketSlipHtml(market,mi);
+  setStatus(market+'（FAX '+faxNo+'）の伝票PDFを作成中…');
+  _pdfBase64FromHtml(slip.html)
+    .then(function(b64){
+      return _dispatchFax({to:sendAddr,subject:faxNo,pdf:b64,filename:'denpyo_'+faxNo+'.pdf'},market,faxNo,'PDF添付');
+    })
+    .catch(function(){
+      return _dispatchFax({to:sendAddr,subject:faxNo,body:body},market,faxNo,'本文テキスト');
+    });
+}
+// FAXメールを送る共通処理：PCサーバー → だめならクラウド（GitHub Actions）の順で試す。
+function _dispatchFax(payload,market,faxNo,kind){
+  setStatus(market+'（FAX '+faxNo+'）を'+kind+'で送信中…');
+  return fetch(API_BASE+'/api/sendfax',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)})
     .then(function(r){
       if(!r.ok){return r.json().then(function(j){throw new Error((j&&j.detail)||('HTTP '+r.status));});}
       return r.json();
     })
     .then(function(){
-      setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信しました（'+sendAddr+'）','ok');
+      setStatus(market+'（FAX '+faxNo+'）を'+kind+'で送信しました','ok');
     })
     .catch(function(e){
-      // PCサーバーが無い（スマホ単体）→ クラウド（GitHub Actions）からテキスト形式で自動送信。
-      // ※ GmailのWeb作成画面はスマホだとリダイレクトループになるため廃止した。
-      setStatus(market+'（FAX '+faxNo+'）をクラウド経由で送信中…');
-      _sendFaxViaCloud(sendAddr,faxNo,body)
+      // PCサーバーが無い（スマホ単体）→ クラウドから自動送信
+      setStatus(market+'（FAX '+faxNo+'）をクラウド経由（'+kind+'）で送信中…');
+      return _sendFaxViaCloud(payload)
         .then(function(){
-          setStatus(market+'（FAX '+faxNo+'）の送信を受け付けました。約1分以内にテキスト形式でFAXメールが送られます','ok');
+          setStatus(market+'（FAX '+faxNo+'）の送信を受け付けました。約1分以内に'+kind+'でFAXメールが送られます','ok');
         })
         .catch(function(e2){
           alert('FAXを送信できませんでした。\n\n'+
