@@ -596,7 +596,8 @@
       <input type="email" id="fax_send_addr" class="settings-input" placeholder="例：xxxxx@toones.email-fax.jp（発行されたアドレス）">
       <div style="font-size:11px;color:#9a8880;margin-top:5px;line-height:1.6">
         「秒速FAX送信」の管理画面［送信アドレス管理］で発行した<strong>送信用メールアドレス</strong>を入力します。<br>
-        「FAXで送る」を押すと、このアドレス宛に <strong>件名＝相手先FAX番号／本文＝伝票内容</strong> のメールが作られます。そのまま送信すると、本文がFAXとして届きます。<br>
+        「FAXで送る」を押すと、<strong>件名＝相手先FAX番号／本文＝伝票内容</strong>のメールを自動で送ります（PCのサーバー起動時）。<br>
+        &#x1F4F1; スマホでは <strong>Gmailの作成画面</strong>が自動で開きます（宛先・件名・本文入り）。<strong>初回のみ</strong> Gmail作成画面の右下「︙」→「<strong>プレーンテキストモード</strong>」をONにしてください（以後は記憶されます）。<br>
         ※ 相手先FAX番号は、各市場の「FAX番号」欄に <strong>市外局番から</strong> 登録してください。
       </div>
     </div>
@@ -1341,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260612-2011';
+var APP_VERSION='20260612-2345';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3100,6 +3101,74 @@ function printAllMarketsSlips(){
   win.document.open();win.document.write(html);win.document.close();
   setStatus('全市場伝票（'+pages.length+'市場）を開きました');
 }
+// ── 本物のPDFファイル生成（html2canvas + jsPDF をCDNから読み込み）──────
+// スマホ（PWA）では window.open の印刷画面がブロックされて何も起きないため、
+// 伝票HTMLを画像化してPDFファイルを直接ダウンロードする。
+var _pdfLibsPromise=null;
+function _loadPdfLibs(){
+  if(window.html2canvas&&window.jspdf&&window.jspdf.jsPDF)return Promise.resolve();
+  if(_pdfLibsPromise)return _pdfLibsPromise;
+  function ld(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error('PDFライブラリの読み込みに失敗'));};document.head.appendChild(s);});}
+  _pdfLibsPromise=Promise.all([
+    ld('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+    ld('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+  ]).catch(function(e){_pdfLibsPromise=null;throw e;});
+  return _pdfLibsPromise;
+}
+function _downloadPdfFromHtml(fullHtml,filename){
+  return _loadPdfLibs().then(function(){
+    return new Promise(function(resolve,reject){
+      var ifr=document.createElement('iframe');
+      ifr.style.cssText='position:fixed;left:-10000px;top:0;width:800px;height:1200px;border:0;visibility:hidden';
+      document.body.appendChild(ifr);
+      var cleanup=function(){try{document.body.removeChild(ifr);}catch(e){}};
+      var done=false;
+      var fail=function(e){if(done)return;done=true;cleanup();reject(e);};
+      setTimeout(function(){fail(new Error('PDF生成がタイムアウトしました'));},20000);
+      ifr.onload=function(){
+        try{
+          var doc=ifr.contentDocument;
+          var st=doc.createElement('style');
+          st.textContent='.no-print{display:none!important}body{padding:0!important}';
+          doc.head.appendChild(st);
+          var target=doc.querySelector('.wrap')||doc.body;
+          ifr.style.height=Math.max(1200,doc.body.scrollHeight+50)+'px';
+          setTimeout(function(){
+            window.html2canvas(target,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(function(canvas){
+              var jsPDF=window.jspdf.jsPDF;
+              var pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+              var mLeft=10,mTop=10,cw=190,ch=277; // A4から余白10mmを引いた描画領域
+              var pagePx=Math.floor(canvas.width*ch/cw);
+              var y=0,first=true;
+              while(y<canvas.height){
+                var sliceH=Math.min(pagePx,canvas.height-y);
+                var pc=document.createElement('canvas');pc.width=canvas.width;pc.height=sliceH;
+                pc.getContext('2d').drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+                if(!first)pdf.addPage();
+                pdf.addImage(pc.toDataURL('image/jpeg',0.92),'JPEG',mLeft,mTop,cw,sliceH*cw/canvas.width);
+                first=false;y+=sliceH;
+              }
+              pdf.save(filename);
+              if(!done){done=true;cleanup();resolve();}
+            }).catch(fail);
+          },250);
+        }catch(e){fail(e);}
+      };
+      ifr.srcdoc=fullHtml;
+    });
+  });
+}
+// PDFダウンロード失敗時のフォールバック（PC向け：従来の印刷画面）
+function _pdfFallbackWindow(html,okMsg){
+  var win=null;
+  try{win=window.open('','_blank','width=900,height=750');}catch(e){}
+  if(win){
+    win.document.open();win.document.write(html);win.document.close();
+    setStatus(okMsg+'（「PDFで保存」ボタンを押してください）','ok');
+  }else{
+    setStatus('PDFを作成できませんでした。通信環境（インターネット接続）をご確認ください','error');
+  }
+}
 function exportMarketPDF(market,mi){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var items=_sortOrderFirst(getDistData().filter(function(it){return it.marketCounts[mi]>0;}));
@@ -3109,9 +3178,12 @@ function exportMarketPDF(market,mi){
     return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
   }).join('');
   var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
-  var win=window.open('','_blank','width=900,height=750');
-  win.document.open();win.document.write(buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market));win.document.close();
-  setStatus(market+'の伝票PDFを開きました');
+  var html=buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market);
+  var fname=market+' '+(date||'日付未定')+'.pdf';
+  setStatus(market+'の伝票PDFを作成中…しばらくお待ちください');
+  _downloadPdfFromHtml(html,fname)
+    .then(function(){setStatus(market+'の伝票PDF（'+fname+'）をダウンロードしました','ok');})
+    .catch(function(){_pdfFallbackWindow(html,market+'の伝票を開きました');});
 }
 function exportAllMarketsPDF(){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
@@ -3120,9 +3192,12 @@ function exportAllMarketsPDF(){
     return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.totalBoxes+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
   }).join('');
   var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>合計箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
-  var win=window.open('','_blank','width=900,height=750');
-  win.document.open();win.document.write(buildPdfHTML('出荷伝票（全市場合計）',date,producer,tbl,null));win.document.close();
-  setStatus('全市場合計の伝票PDFを開きました');
+  var html=buildPdfHTML('出荷伝票（全市場合計）',date,producer,tbl,null);
+  var fname='全市場合計 '+(date||'日付未定')+'.pdf';
+  setStatus('全市場合計の伝票PDFを作成中…しばらくお待ちください');
+  _downloadPdfFromHtml(html,fname)
+    .then(function(){setStatus('全市場合計の伝票PDF（'+fname+'）をダウンロードしました','ok');})
+    .catch(function(){_pdfFallbackWindow(html,'全市場合計の伝票を開きました');});
 }
 // ── メール設定 ──────────────────────────────────────────────────
 function loadEmailSettings(){
@@ -3249,13 +3324,16 @@ function sendMarketFax(market,mi){
       setStatus(market+'（FAX '+faxNo+'）をテキスト形式で送信しました（'+sendAddr+'）','ok');
     })
     .catch(function(e){
-      // サーバー未起動（スマホ単体・GitHub Pages等）→ メールアプリで送る案内
-      var openMail=confirm('FAXのテキスト送信ができませんでした。\n（PCのアプリ／サーバーから送ると確実です）\n\n'+
-        'このままメールアプリを開いて送信しますか？\n'+
-        '※ 秒速FAXは「テキスト形式」のみ対応です。メールアプリが「HTML形式」で送ると失敗します。');
-      if(openMail){
-        window.location.href='mailto:'+encodeURIComponent(sendAddr)+'?subject='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
-        setStatus(market+'（FAX '+faxNo+'）：メールを開きました。必ず「テキスト形式」で送信してください','ok');
+      // サーバー未起動（スマホ単体）→ GmailのWeb作成画面を、宛先・件名・本文入りで開く。
+      // Gmailで「プレーンテキストモード」をONにしておけばテキスト形式で送れる（設定は記憶される）。
+      var go=confirm('Gmailの作成画面を開きます。\n宛先・件名（FAX番号）・本文は自動で入ります。そのまま送信してください。\n\n'+
+        '※ 初回のみ：Gmail作成画面の右下「︙」→「プレーンテキストモード」をONにしてください。\n'+
+        '（HTML形式のままだとFAXが失敗します。一度ONにすれば次回からずっと有効です）');
+      if(go){
+        var gmailUrl='https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(sendAddr)+'&su='+encodeURIComponent(faxNo)+'&body='+encodeURIComponent(body);
+        var win=null;try{win=window.open(gmailUrl,'_blank');}catch(err){}
+        if(!win)window.location.href=gmailUrl;
+        setStatus(market+'（FAX '+faxNo+'）：Gmailを開きました。「プレーンテキストモード」を確認して送信してください','ok');
       }else{
         setStatus('FAX送信を中止しました（PCのアプリから送ると確実です）','error');
       }
