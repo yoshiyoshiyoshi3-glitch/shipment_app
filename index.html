@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260613-0015';
+var APP_VERSION='20260613-1006';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3999,7 +3999,9 @@ function loadHistory(){
 }
 function clearHistory(){
   if(!confirm('出荷履歴をすべて削除しますか？'))return;
+  _addHistTombstones(loadHistory().map(function(r){return r.id;})); // 同期で復活しないよう全件の削除を記録
   localStorage.removeItem('shipHistory');
+  pushToServer(); // 削除を他の端末にも反映
   buildStatView();
 }
 function buildStatView(){
@@ -4245,6 +4247,7 @@ function deleteHistRecord(id){
   if(!confirm('この出荷データを履歴から削除しますか？\n（元に戻せません）'))return;
   var hist=loadHistory().filter(function(r){return String(r.id)!==String(id);});
   try{localStorage.setItem('shipHistory',JSON.stringify(hist));}catch(e){alert('削除失敗');return;}
+  _addHistTombstones([id]); // 同期で復活しないよう削除を記録
   pushToServer();
   buildStatView();
   setStatus('出荷データを削除しました','ok');
@@ -4899,7 +4902,7 @@ function drawChart(type,settlements){
   });
 }
 // ── データ同期（GitHub Gist + ファイル書き出し）──────────────────
-var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxSendAddr','draftBackup'];
+var SYNC_KEYS=['producerInfo','marketSettings','marketDistSettings','shipHistoryDeleted','shipHistory','customMaster','emailSettings','parseDelay','apiConfig','faxSendAddr','draftBackup'];
 var _gistToken='';
 var _gistId='';
 
@@ -4908,13 +4911,38 @@ var _gistId='';
   _gistId=localStorage.getItem('gistId')||'';
 })();
 
+// 削除済み出荷履歴のID一覧（墓標）。削除が同期の結合で復活しないようにするための記録。
+function _readHistTombstones(){
+  try{var o=JSON.parse(localStorage.getItem('shipHistoryDeleted')||'{}');return (o&&typeof o==='object'&&!Array.isArray(o))?o:{};}catch(e){return {};}
+}
+function _addHistTombstones(ids){
+  var t=_readHistTombstones();var now=Date.now();
+  (ids||[]).forEach(function(id){if(id!=null)t[String(id)]=now;});
+  // 履歴自体が1年で消えるため、古すぎる墓標は掃除する
+  Object.keys(t).forEach(function(k){if(Number(k)<now-370*24*60*60*1000)delete t[k];});
+  try{localStorage.setItem('shipHistoryDeleted',JSON.stringify(t));}catch(e){}
+}
+function _mergeHistTombstones(remote){
+  if(!remote||typeof remote!=='object'||Array.isArray(remote))return false;
+  var t=_readHistTombstones();var changed=false;
+  Object.keys(remote).forEach(function(id){
+    var v=Number(remote[id])||0;
+    if(!t[id]||v>t[id]){t[id]=v;changed=true;}
+  });
+  if(changed){try{localStorage.setItem('shipHistoryDeleted',JSON.stringify(t));}catch(e){}}
+  return changed;
+}
 // 出荷履歴（統計の元データ）を端末間で結合する。
-// id重複は新しい保存（savedAt）を優先。新しい順に並べ、1年より古いものは除外。
+// id重複は新しい保存（savedAt）を優先。削除済み（墓標あり）は復活させない。
+// 新しい順に並べ、1年より古いものは除外。
 function _mergeHistArrays(a,b){
   var map={};
+  var dead=_readHistTombstones();
   (a||[]).concat(b||[]).forEach(function(r){
     if(!r||r.id==null)return;
-    var k=String(r.id),cur=map[k];
+    var k=String(r.id);
+    if(dead[k])return; // 削除済みは結合しない（復活防止）
+    var cur=map[k];
     if(!cur){map[k]=r;return;}
     // 同一idが両方にある場合は savedAt が新しい方を採用
     var rt=Date.parse(r.savedAt||'')||0, ct=Date.parse(cur.savedAt||'')||0;
@@ -4943,8 +4971,13 @@ function _applyGistData(data){
   var updated=false;
   SYNC_KEYS.forEach(function(k){
     if(data[k]===undefined)return;
+    if(k==='shipHistoryDeleted'){
+      // 削除の記録（墓標）を先に結合する（SYNC_KEYSでshipHistoryより前に置いてある）
+      if(_mergeHistTombstones(data[k]))updated=true;
+      return;
+    }
     if(k==='shipHistory'){
-      // 統計データは上書きせず結合（他端末の出荷履歴を残す）
+      // 統計データは上書きせず結合（他端末の出荷履歴を残す）。削除済みは復活させない。
       var remoteArr=Array.isArray(data[k])?data[k]:[];
       var merged=JSON.stringify(_mergeHistArrays(_readLocalHistory(),remoteArr));
       if(localStorage.getItem('shipHistory')!==merged){localStorage.setItem('shipHistory',merged);updated=true;}
@@ -5031,9 +5064,13 @@ function _pushToGistInternal(showMsg){
             var f=g.files&&g.files['sakai_floric_data.json'];
             if(f){
               var remote=JSON.parse(f.content);
-              if(remote&&remote.shipHistory!==undefined){
-                var remoteArr=Array.isArray(remote.shipHistory)?remote.shipHistory:[];
-                localStorage.setItem('shipHistory',JSON.stringify(_mergeHistArrays(_readLocalHistory(),remoteArr)));
+              if(remote){
+                // 削除の記録（墓標）を先に取り込む → 結合時に削除済みが復活しない
+                _mergeHistTombstones(remote.shipHistoryDeleted);
+                if(remote.shipHistory!==undefined){
+                  var remoteArr=Array.isArray(remote.shipHistory)?remote.shipHistory:[];
+                  localStorage.setItem('shipHistory',JSON.stringify(_mergeHistArrays(_readLocalHistory(),remoteArr)));
+                }
               }
             }
           }catch(e){}
