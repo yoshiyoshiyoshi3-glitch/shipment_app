@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260613-1006';
+var APP_VERSION='20260613-1019';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3512,12 +3512,12 @@ function buildLabelPageHTML(allLabels){
     '.page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);gap:2mm}'+
     // font-size は em ベース（.label の font-size を JS で縮小して全体を自動調整）
     '.label{font-size:10pt;border:1.5px solid #b87888;border-radius:3mm;padding:3mm 4mm;display:flex;flex-direction:column;justify-content:space-between;background:white;overflow:hidden}'+
-    '.label-empty{border:1px dashed #ddd;font-size:10pt}.lbl-market{font-size:1.05em;font-weight:900;color:#8b6458;text-align:center;border-bottom:1px solid #e0cfc8;padding-bottom:1.5mm;margin-bottom:1.5mm}'+
+    '.label-empty{border:1px dashed #ddd;font-size:10pt}.lbl-market{font-size:1.5em;font-weight:900;color:#8b6458;text-align:center;border-bottom:1px solid #e0cfc8;padding-bottom:1.5mm;margin-bottom:1.5mm}'+
     '.lbl-name{font-size:1.1em;font-weight:600;color:#6e5a50;text-align:center;line-height:1.2}.lbl-variety{font-size:1.7em;font-weight:900;color:#3a2e28;text-align:center;line-height:1.2}'+
     '.lbl-row{display:flex;gap:2mm;margin-top:1.5mm}.lbl-cell{flex:1;background:#fdf8f5;border:1px solid #e0cfc8;border-radius:2mm;padding:1mm 2mm;display:flex;align-items:center;gap:2mm}'+
     '.lbl-key{font-size:0.8em;color:#9a8880;font-weight:600}.lbl-val{font-size:1.3em;font-weight:900;color:#3a2e28}.val-ext{color:#9a4820}'+
     '.lbl-count{font-size:1.9em;font-weight:900;text-align:center;color:#3a2e28;line-height:1.1}.lbl-stems{font-size:1.1em;font-weight:700;color:#6e5a50;margin-left:4pt}'+
-    '.lbl-note{font-size:0.9em;color:#9a4820;font-weight:700;text-align:center;background:#fef8e8;border-radius:2mm;padding:1mm}.lbl-code{font-size:0.85em;color:#8b6458;font-weight:600}.lbl-producer{font-size:0.85em;color:#8b6458;font-weight:700;text-align:center;margin-top:1mm}.lbl-date{font-size:0.75em;color:#b0a0a0;text-align:right}'+
+    '.lbl-note{font-size:0.9em;color:#9a4820;font-weight:700;text-align:center;background:#fef8e8;border-radius:2mm;padding:1mm}.lbl-code{font-size:1.3em;color:#8b6458;font-weight:800}.lbl-producer{font-size:0.85em;color:#8b6458;font-weight:700;text-align:center;margin-top:1mm}.lbl-date{font-size:0.75em;color:#b0a0a0;text-align:right}'+
     '.lbl-boxnum{font-size:3.6em;font-weight:900;text-align:center;color:#b87888;line-height:1;margin:2mm 0}'+
     '.lbl-bitems{flex:1;overflow:hidden;margin:1mm 0}.lbl-bitem{display:flex;justify-content:space-between;align-items:center;padding:0.5mm 0;border-bottom:1px dotted #e0d0c8}.lbl-bname{color:#3a2e28;font-weight:600;flex:1}.lbl-bstem{color:#b87888;font-weight:700;white-space:nowrap}'+
     '.print-btn{display:block;margin:0 auto 16px;padding:12px 32px;background:#8b6458;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}';
