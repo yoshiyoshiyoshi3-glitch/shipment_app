@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260613-1019';
+var APP_VERSION='20260616-0025';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3568,7 +3568,6 @@ function completeShipment(){
   setStatus('出荷データを保存しました','ok');
   _lastShipment={distData:distData,date:date,producer:producer};
   showSendPanel(distData,date,producer);
-  saveShipmentToFolder(distData,date,producer,false);
 }
 
 // ── 自動マスタ登録 ──────────────────────────────────────────────
