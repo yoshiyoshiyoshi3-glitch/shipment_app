@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260616-0025';
+var APP_VERSION='20260616-0053';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2847,14 +2847,14 @@ function buildMarketSummaries(){
   var date=document.getElementById('shipDate').value, producer=document.getElementById('producerName').value;
   var container=document.getElementById('marketSummaries'); container.innerHTML='';
   var allRows=items.map(function(it){
-    var qty=it.totalBoxes+'箱'+(it.perBox>0?'<br><span style="font-size:11px;color:#9a8880">'+it.perBox+it.stemUnit+'/箱</span>':'');
+    var qty=it.totalBoxes+'箱（束）'+(it.perBox>0?'<br><span style="font-size:11px;color:#9a8880">'+it.perBox+it.stemUnit+'/箱</span>':'');
     return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td><span class="badge '+(it.grade==='外'?'ext':'')+'">'+it.grade+'</span></td><td style="text-align:center">'+(it.rings||'－')+'</td><td>'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center;line-height:1.4">'+qty+'</td><td>'+it.note+'</td></tr>';
   }).join('');
   if(allRows){
     var allDiv=document.createElement('div'); allDiv.className='card'; allDiv.style.cssText='margin-bottom:12px;border:2px solid #b87888';
     allDiv.innerHTML='<div class="section-title">&#x1F4CA; 全市場合計</div>'+
       '<div style="font-size:12px;color:#888;margin-bottom:8px">出荷日：'+date+'　生産者：'+producer+'</div>'+
-      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>合計数量</th><th>備考</th></tr></thead><tbody>'+allRows+'</tbody></table>'+
+      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>合計数量</th><th>備考</th></tr></thead><tbody>'+allRows+_packSummaryRow7(_sumTotalBoxes(items))+'</tbody></table>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'+
         '<button class="btn-export" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsCSV()">&#x1F4E5; 全市場CSV</button>'+
         '<button class="btn-excel" style="flex:1;min-width:110px;font-size:13px;padding:9px 10px" onclick="exportAllMarketsExcel()">&#x1F4D7; 全市場Excel</button>'+
@@ -2867,14 +2867,14 @@ function buildMarketSummaries(){
   MARKETS.forEach(function(market,mi){
     var marketItems=_sortOrderFirst(items.filter(function(it){return it.marketCounts[mi]>0;})); if(!marketItems.length)return;
     var rows=marketItems.map(function(it){
-      var qty=it.marketBoxes[mi]+'箱'+(it.perBox>0?'<br><span style="font-size:11px;color:#9a8880">'+it.perBox+it.stemUnit+'/箱</span>':'');
+      var qty=it.marketBoxes[mi]+'箱（束）'+(it.perBox>0?'<br><span style="font-size:11px;color:#9a8880">'+it.perBox+it.stemUnit+'/箱</span>':'');
       var rowStyle=it.note&&it.note.indexOf('注文')>=0?' style="background:#fff3f0"':'';
       return'<tr'+rowStyle+'><td>'+it.name+'</td><td>'+it.variety+'</td><td><span class="badge '+(it.grade==='外'?'ext':'')+'">'+it.grade+'</span></td><td style="text-align:center">'+(it.rings||'－')+'</td><td>'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center;line-height:1.4">'+qty+'</td><td>'+_fmtNote(it.note)+'</td></tr>';
     }).join('');
     var div=document.createElement('div'); div.className='card'; div.style.marginBottom='12px';
     div.innerHTML='<div class="section-title">&#x1F4CB; '+market+'</div>'+
       '<div style="font-size:12px;color:#888;margin-bottom:8px">出荷日：'+date+'　生産者：'+producer+'</div>'+
-      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>数量</th><th>備考</th></tr></thead><tbody>'+rows+_matomeFooterHtml7(mi)+'</tbody></table>'+
+      '<table class="summary-table"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>数量</th><th>備考</th></tr></thead><tbody>'+rows+_matomeFooterHtml7(mi)+_packSummaryRow7(_sumMarketBoxes(marketItems,mi))+'</tbody></table>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'+
         '<button class="btn-export" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketCSV(\''+market+'\','+mi+')">&#x1F4E5; CSV</button>'+
         '<button class="btn-excel" style="flex:1;min-width:90px;font-size:13px;padding:9px 10px" onclick="exportMarketExcel(\''+market+'\','+mi+')">&#x1F4D7; Excel</button>'+
@@ -2902,6 +2902,14 @@ function _fmtNote(note){
   }).join('・');
 }
 function _mixNote(it,mi){return it.note||'';}
+// 合計箱数（束）と梱包数（束数÷3 切り上げ）
+function _packInfo(boxes){var b=parseInt(boxes)||0;return{boxes:b,packs:Math.ceil(b/3)};}
+function _sumMarketBoxes(items,mi){var s=0;(items||[]).forEach(function(it){s+=parseInt(it.marketBoxes[mi])||0;});return s;}
+function _sumTotalBoxes(items){var s=0;(items||[]).forEach(function(it){s+=parseInt(it.totalBoxes)||0;});return s;}
+function _packSummaryRow8(boxes){var p=_packInfo(boxes);return'<tr style="background:#f5ede8"><td colspan="8" style="text-align:right;font-weight:900;font-size:11pt;color:#8b6458;border:1px solid #e0cfc8;padding:2mm 3mm">合計 '+p.boxes+'箱（束）　／　梱包数 '+p.packs+'梱包（束数÷3 切上げ）</td></tr>';}
+function _packSummaryRow7(boxes){var p=_packInfo(boxes);return'<tr style="background:#faf2ee"><td colspan="7" style="text-align:right;font-weight:800;color:#8b6458;padding:6px 8px;border-top:2px solid #e0cfc8">合計 '+p.boxes+'箱（束）　／　梱包数 '+p.packs+'梱包</td></tr>';}
+function _packCsvLine(boxes){var p=_packInfo(boxes);return ',,,,,'+escCsv('【合計】'+p.boxes+'箱（束） / 梱包数 '+p.packs+'梱包')+',,\n';}
+function _packXlsRow(boxes){var p=_packInfo(boxes);return'<Row>'+xlsCell('')+xlsCell('')+xlsCell('')+xlsCell('')+xlsCell('合計')+xlsCell(p.boxes+'箱（束）')+xlsCell('梱包数 '+p.packs)+xlsCell('')+'</Row>';}
 // まとめ行HTML（8列テーブル用 PDF/印刷）
 function _matomeFooterHtml8(mi){
   var phys=getMatomePhysTotal(mi);if(phys===null)return'';
@@ -2949,9 +2957,10 @@ function exportMarketCSV(market,mi){
   csv+='電話,'+escCsv(pinfo.tel||'')+'\n';
   csv+='生産者コード,'+escCsv(pcode)+'\n';
   csv+='生産者名,'+escCsv(producer)+'\n\n';
-  csv+='品目名,品種・色,等級,輪数,規格(cm),箱数,1箱あたり本数,備考\n';
-  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.marketBoxes[mi]+'箱'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(_mixNote(it,mi))].join(',')+'\n';});
+  csv+='品目名,品種・色,等級,輪数,規格(cm),箱数（束）,1箱あたり本数,備考\n';
+  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.marketBoxes[mi]+'箱（束）'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(_mixNote(it,mi))].join(',')+'\n';});
   csv+=_matomeCsvLine(mi);
+  csv+=_packCsvLine(_sumMarketBoxes(items,mi));
   var folder=(date||'日付未定')+'/';
   downloadFile(csv,folder+market+' '+(date||'日付未定')+'.csv','text/csv;charset=utf-8;');
   setStatus(market+'の伝票をダウンロードしました');
@@ -2965,8 +2974,9 @@ function exportAllMarketsCSV(){
   csv+='住所,'+escCsv(pinfo.addr||'')+'\n';
   csv+='電話,'+escCsv(pinfo.tel||'')+'\n';
   csv+='生産者名,'+escCsv(producer)+'\n\n';
-  csv+='品目名,品種・色,等級,輪数,規格(cm),合計箱数,1箱あたり本数,備考\n';
-  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.totalBoxes+'箱'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(it.note)].join(',')+'\n';});
+  csv+='品目名,品種・色,等級,輪数,規格(cm),合計箱数（束）,1箱あたり本数,備考\n';
+  items.forEach(function(it){csv+=[escCsv(it.name),escCsv(it.variety),escCsv(it.grade),escCsv(it.rings||''),escCsv(it.size),escCsv(it.totalBoxes+'箱（束）'),escCsv(it.perBox>0?it.perBox+it.stemUnit+'/箱':''),escCsv(it.note)].join(',')+'\n';});
+  csv+=_packCsvLine(_sumTotalBoxes(items));
   var folder=(date||'日付未定')+'/';
   downloadFile(csv,folder+'全市場合計 '+(date||'日付未定')+'.csv','text/csv;charset=utf-8;');
   setStatus('全市場合計CSVをダウンロードしました');
@@ -2999,9 +3009,10 @@ function exportMarketExcel(market,mi){
   var items=_sortOrderFirst(getDistData().filter(function(it){return it.marketCounts[mi]>0;}));
   if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
   var rows=xlsHead(date,producer,'出荷伝票',market);
-  rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','箱数','1箱あたり本数','備考']);
-  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.marketBoxes[mi]+'箱')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(_mixNote(it,mi))+'</Row>';});
+  rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','箱数（束）','1箱あたり本数','備考']);
+  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.marketBoxes[mi]+'箱（束）')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(_mixNote(it,mi))+'</Row>';});
   rows+=_matomeXlsRow(mi);
+  rows+=_packXlsRow(_sumMarketBoxes(items,mi));
   var folder=(date||'日付未定')+'/';
   downloadXls(rows,market,folder+market+' '+(date||'日付未定')+'.xls');
   setStatus(market+'のExcelをダウンロードしました');
@@ -3010,8 +3021,9 @@ function exportAllMarketsExcel(){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var items=getDistData(); if(!items.length){setStatus('品目がありません','error');return;}
   var rows=xlsHead(date,producer,'出荷伝票（全市場合計）',null);
-  rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','合計箱数','1箱あたり本数','備考']);
-  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.totalBoxes+'箱')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(it.note)+'</Row>';});
+  rows+=xlsHeaderRow(['品目名','品種・色','等級','輪数','規格(cm)','合計箱数（束）','1箱あたり本数','備考']);
+  items.forEach(function(it){rows+='<Row>'+xlsCell(it.name)+xlsCell(it.variety)+xlsCell(it.grade)+xlsCell(it.rings||'')+xlsCell(it.size)+xlsCell(it.totalBoxes+'箱（束）')+xlsCell(it.perBox>0?it.perBox+it.stemUnit+'/箱':'')+xlsCell(it.note)+'</Row>';});
+  rows+=_packXlsRow(_sumTotalBoxes(items));
   var folder=(date||'日付未定')+'/';
   downloadXls(rows,'全市場合計',folder+'全市場合計 '+(date||'日付未定')+'.xls');
   setStatus('全市場合計Excelをダウンロードしました');
@@ -3078,9 +3090,9 @@ function printAllMarketsSlips(){
     var codeLine=pcode?'<tr><td class="lbl">生産者コード</td><td><strong>'+pcode+'</strong></td></tr>':'';
     var tbody=items.map(function(it){
       var _rs=it.note&&it.note.indexOf('注文')>=0?' style="background:#fff3f0"':'';
-      return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
+      return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱（束）</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
     }).join('');
-    var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
+    var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数（束）</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+_packSummaryRow8(_sumMarketBoxes(items,mi))+'</tbody></table>';
     pages.push(
       '<div class="page">'+
       '<h1>出荷伝票　'+market+'</h1>'+
@@ -3187,9 +3199,9 @@ function _buildMarketSlipHtml(market,mi){
   if(!items.length)return null;
   var tbody=items.map(function(it){
     var _rs=it.note&&it.note.indexOf('注文')>=0?' style="background:#fff3f0"':'';
-    return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
+    return'<tr'+_rs+'><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.marketBoxes[mi]+'箱（束）</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+_fmtNote(_mixNote(it,mi))+'</td></tr>';
   }).join('');
-  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+'</tbody></table>';
+  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>箱数（束）</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_matomeFooterHtml8(mi)+_packSummaryRow8(_sumMarketBoxes(items,mi))+'</tbody></table>';
   return {html:buildPdfHTML('出荷伝票　'+market,date,producer,tbl,market), fname:market+' '+(date||'日付未定')+'.pdf'};
 }
 function exportMarketPDF(market,mi){
@@ -3204,9 +3216,9 @@ function exportAllMarketsPDF(){
   var date=document.getElementById('shipDate').value,producer=document.getElementById('producerName').value;
   var items=getDistData();if(!items.length){setStatus('品目がありません','error');return;}
   var tbody=items.map(function(it){
-    return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.totalBoxes+'箱</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
+    return'<tr><td>'+it.name+'</td><td>'+it.variety+'</td><td class="'+(it.grade==='外'?'ext':'')+'" style="text-align:center">'+it.grade+'</td><td style="text-align:center">'+(it.rings||'－')+'</td><td style="text-align:center">'+(it.size?it.size+'cm':'－')+'</td><td style="text-align:center">'+it.totalBoxes+'箱（束）</td><td style="text-align:center">'+(it.perBox>0?it.perBox+it.stemUnit+'/箱':'－')+'</td><td>'+it.note+'</td></tr>';
   }).join('');
-  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>合計箱数</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+'</tbody></table>';
+  var tbl='<table class="main"><thead><tr><th>品目名</th><th>品種・色</th><th>等級</th><th>輪数</th><th>規格</th><th>合計箱数（束）</th><th>1箱あたり</th><th>備考</th></tr></thead><tbody>'+tbody+_packSummaryRow8(_sumTotalBoxes(items))+'</tbody></table>';
   var html=buildPdfHTML('出荷伝票（全市場合計）',date,producer,tbl,null);
   var fname='全市場合計 '+(date||'日付未定')+'.pdf';
   setStatus('全市場合計の伝票PDFを作成中…しばらくお待ちください');
