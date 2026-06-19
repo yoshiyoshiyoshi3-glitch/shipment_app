@@ -1348,7 +1348,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260620-0740';
+var APP_VERSION='20260620-0804';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3156,7 +3156,7 @@ function printAllMarketsSlips(){
     );
   });
   if(!pages.length){setStatus('振り分けデータがありません','error');return;}
-  var autoprint='<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});<\/script>';
+  var autoprint=''; // 自動印刷はしない（利用者が「印刷する」ボタンで実行）
   var html='<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>出荷伝票 全市場</title><style>'+css+'</style></head><body>'+
     autoprint+
     '<button class="pbtn no-print" onclick="window.print()">🖨️ 全市場まとめて印刷</button>'+
@@ -3237,18 +3237,26 @@ function _pdfBase64FromHtml(fullHtml){
 // ポップアップブロックや、別ウィンドウからのwindow.print()不発でプリンタが反応しない問題を回避する。
 // autoPrint=true のときはこちらでprint()を呼ぶ。HTMLに自動印刷スクリプトがある場合は false。
 function _printHtmlViaIframe(html,autoPrint){
-  // 重要: 印刷フレームは印刷（スプール）が終わるまで消さない。
-  //   印刷中に削除すると「印刷ジョブ キャンセル中」になりプリンタが出力しない。
-  //   そのため、前回のフレームは「次に印刷するとき」だけ置き換える（印刷後すぐは消さない）。
-  var old=document.getElementById('_printFrame');if(old&&old.parentNode)old.parentNode.removeChild(old);
+  // 印刷は「画面に大きく表示 → 利用者が"印刷する"ボタンを押す（手動操作）」方式にする。
+  // 自動印刷（プログラムからの印刷）はプリンタドライバにキャンセルされることがあるため使わない。
+  var ov=document.getElementById('_printOverlay');if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);
+  ov=document.createElement('div');ov.id='_printOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#3a3a3a;display:flex;flex-direction:column';
+  var bar=document.createElement('div');
+  bar.style.cssText='flex:none;display:flex;gap:10px;padding:10px;background:#262626;align-items:center;justify-content:center;flex-wrap:wrap';
+  bar.innerHTML='<button id="_povPrint" style="background:#6d8a54;color:#fff;border:none;border-radius:8px;padding:13px 30px;font-size:17px;font-weight:700;min-height:50px;cursor:pointer">&#x1F5A8; 印刷する</button>'+
+    '<button id="_povClose" style="background:#888;color:#fff;border:none;border-radius:8px;padding:13px 22px;font-size:15px;font-weight:700;min-height:50px;cursor:pointer">&times; 閉じる</button>'+
+    '<span style="color:#ddd;font-size:12px;flex-basis:100%;text-align:center">プレビューを確認して「印刷する」を押してください。&nbsp;印刷画面で<strong>余白を「なし」</strong>に設定するとラベルがきれいに収まります。</span>';
   var ifr=document.createElement('iframe');
   ifr.id='_printFrame';
-  ifr.style.cssText='position:fixed;left:-10000px;top:0;width:900px;height:1200px;border:0';
-  ifr.onload=function(){
-    if(autoPrint){setTimeout(function(){try{ifr.contentWindow.focus();ifr.contentWindow.print();}catch(e){}},500);}
-  };
-  document.body.appendChild(ifr);
+  ifr.style.cssText='flex:1;width:100%;border:0;background:#fff';
+  ov.appendChild(bar);ov.appendChild(ifr);
+  document.body.appendChild(ov);
   ifr.srcdoc=html;
+  document.getElementById('_povPrint').onclick=function(){
+    try{ifr.contentWindow.focus();ifr.contentWindow.print();}catch(e){try{window.print();}catch(e2){}}
+  };
+  document.getElementById('_povClose').onclick=function(){if(ov.parentNode)ov.parentNode.removeChild(ov);};
   return ifr;
 }
 // PDFダウンロード失敗時のフォールバック：隠しiframeで印刷画面を出す（ポップアップ不要）
@@ -3604,13 +3612,12 @@ function buildLabelPageHTML(allLabels){
     '.lbl-boxnum{font-size:3.6em;font-weight:900;text-align:center;color:#b87888;line-height:1;margin:2mm 0}'+
     '.lbl-bitems{flex:1;overflow:hidden;margin:1mm 0}.lbl-bitem{display:flex;justify-content:space-between;align-items:center;padding:0.5mm 0;border-bottom:1px dotted #e0d0c8}.lbl-bname{color:#3a2e28;font-weight:600;flex:1}.lbl-bstem{color:#b87888;font-weight:700;white-space:nowrap}'+
     '.print-btn{display:block;margin:0 auto 16px;padding:12px 32px;background:#8b6458;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}';
-  // ラベルごとに内容が収まるよう font-size を自動縮小してから印刷
+  // ラベルごとに内容が収まるよう font-size を自動縮小する（印刷は利用者が「印刷する」ボタンで実行）
   var autoprint='<script>window.addEventListener("load",function(){'+
     'document.querySelectorAll(".label:not(.label-empty)").forEach(function(lbl){'+
       'var base=10,min=4.5;'+
       'while(lbl.scrollHeight>lbl.offsetHeight+2&&base>min){base-=0.4;lbl.style.fontSize=base+"pt";}'+
     '});'+
-    'setTimeout(function(){window.print();},400);'+
   '});<\/script>';
   var notice='<div class="no-print" style="text-align:center;padding:10px;background:#fff8e1;border-bottom:2px solid #ffc107;font-size:13px;color:#5d4037">'+
     '⚠ 印刷ダイアログの <strong>「余白」を「なし」</strong> に設定してください（ヘッダー・フッターも外す）'+
