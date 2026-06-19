@@ -151,6 +151,9 @@
   .item-summary{font-size:13px;color:var(--primary);font-weight:600;flex:1}
   .delete-btn{background:none;border:none;color:#d4c4bc;cursor:pointer;font-size:20px;line-height:1;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all 0.15s}
   .delete-btn:hover{color:#d45050;background:#fdf0f0}
+  .move-btn{background:#f6ece8;border:1px solid var(--border);color:var(--primary);cursor:pointer;font-size:15px;line-height:1;min-width:34px;min-height:34px;display:flex;align-items:center;justify-content:center;border-radius:7px;padding:0;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  .move-btn:active{background:var(--primary);color:#fff;transform:scale(0.94)}
+  .move-btn:disabled{opacity:0.3;cursor:default;background:#f5f0ee}
   .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .item-field{display:flex;flex-direction:column;gap:3px}
   .item-field>label{font-size:11px;color:var(--text-light);font-weight:600;min-width:unset;letter-spacing:0.04em}
@@ -1342,7 +1345,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260619-2332';
+var APP_VERSION='20260619-2336';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2079,6 +2082,8 @@ function addItem(data){
       '<span class="item-num">品目 '+id+'</span>'+
       '<span class="item-summary" id="sum_'+id+'">'+ [data.name,data.variety,data.count,data.boxes].filter(Boolean).join(' ') +'</span>'+
       '<span class="badge '+gc+'" id="gbadge_'+id+'">'+(data.grade||'A')+'</span>'+
+      '<button class="move-btn" title="上へ移動" aria-label="上へ移動" onclick="moveItem('+id+',-1)">&#x25B2;</button>'+
+      '<button class="move-btn" title="下へ移動" aria-label="下へ移動" onclick="moveItem('+id+',1)">&#x25BC;</button>'+
       '<button class="delete-btn" onclick="deleteItem('+id+')">&times;</button>'+
     '</div>'+
     '<div class="item-fields">'+
@@ -2092,6 +2097,7 @@ function addItem(data){
       '<div class="item-field full-col"><label>備考</label><div class="item-input-row"><input type="text" id="r_'+id+'" placeholder="曲がりなど" value="'+esc(data.note||'')+'"></div></div>'+
     '</div>';
   container.appendChild(div);
+  renumberItems();
   if(data.grade){var sel=document.getElementById('g_'+id);if(sel)sel.value=data.grade;}
   // 輪数セット（指定があれば、なければ品目別デフォルト）
   var rnSel=document.getElementById('rn_'+id);
@@ -2152,7 +2158,25 @@ function addItem(data){
 }
 function onGradeChange(id){var g=document.getElementById('g_'+id)?document.getElementById('g_'+id).value:'';var badge=document.getElementById('gbadge_'+id);if(badge){badge.textContent=g;badge.className='badge'+(g==='外'?' ext':'');}}
 function addItemManual(){var id=addItem({grade:'A'});var el=document.getElementById('n_'+id);if(el)el.focus();}
-function deleteItem(id){var el=document.getElementById('item-'+id);if(el)el.parentNode.removeChild(el);scheduleDraftBackup();}
+function deleteItem(id){var el=document.getElementById('item-'+id);if(el)el.parentNode.removeChild(el);renumberItems();scheduleDraftBackup();}
+// 品目の並べ替え（▲▼）。dir=-1で上へ、1で下へ。
+function moveItem(id,dir){
+  var card=document.getElementById('item-'+id);if(!card)return;
+  if(dir<0){var prev=card.previousElementSibling;if(prev)card.parentNode.insertBefore(card,prev);}
+  else{var next=card.nextElementSibling;if(next)card.parentNode.insertBefore(next,card);}
+  renumberItems();
+  scheduleDraftBackup(); // 並び順も保存・同期する
+}
+// 表示中の「品目 N」を現在の並び順で振り直し、端の▲▼を無効化
+function renumberItems(){
+  var cards=document.querySelectorAll('#itemsContainer .item-card');
+  cards.forEach(function(card,i){
+    var num=card.querySelector('.item-num');if(num)num.textContent='品目 '+(i+1);
+    var btns=card.querySelectorAll('.move-btn');
+    if(btns[0])btns[0].disabled=(i===0);
+    if(btns[1])btns[1].disabled=(i===cards.length-1);
+  });
+}
 function refreshSummary(id){
   var n=document.getElementById('n_'+id)?document.getElementById('n_'+id).value:'';
   var v=document.getElementById('v_'+id)?document.getElementById('v_'+id).value:'';
