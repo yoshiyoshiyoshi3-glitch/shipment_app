@@ -154,6 +154,9 @@
   .move-btn{background:#f6ece8;border:1px solid var(--border);color:var(--primary);cursor:pointer;font-size:15px;line-height:1;min-width:34px;min-height:34px;display:flex;align-items:center;justify-content:center;border-radius:7px;padding:0;touch-action:manipulation;-webkit-user-select:none;user-select:none}
   .move-btn:active{background:var(--primary);color:#fff;transform:scale(0.94)}
   .move-btn:disabled{opacity:0.3;cursor:default;background:#f5f0ee}
+  .item-dup{margin-top:9px;text-align:right}
+  .dup-btn{background:#eef3ec;border:1px solid #9cc39c;color:#33691e;cursor:pointer;font-size:12px;font-weight:700;padding:8px 12px;border-radius:7px;min-height:38px;touch-action:manipulation}
+  .dup-btn:active{background:#33691e;color:#fff;transform:scale(0.97)}
   .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .item-field{display:flex;flex-direction:column;gap:3px}
   .item-field>label{font-size:11px;color:var(--text-light);font-weight:600;min-width:unset;letter-spacing:0.04em}
@@ -1345,7 +1348,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260619-2336';
+var APP_VERSION='20260619-2355';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -2012,8 +2015,17 @@ function highlightMissing(id,flags){
 function updateVarietyList(id,flowerName){
   var dl=document.getElementById('vlist_'+id); if(!dl)return;
   dl.innerHTML='';
-  var varieties=VARIETY_DATA[flowerName]||[];
-  for(var i=0;i<varieties.length;i++){var opt=document.createElement('option');opt.value=varieties[i];dl.appendChild(opt);}
+  var varieties=(VARIETY_DATA[flowerName]||[]).slice();
+  // マスタ登録（customMaster）した品種も候補に反映する
+  try{var cm=JSON.parse(localStorage.getItem('customMaster'))||{};if(cm[flowerName])varieties=varieties.concat(cm[flowerName]);}catch(e){}
+  var seen={};
+  for(var i=0;i<varieties.length;i++){var v=varieties[i];if(!v||seen[v])continue;seen[v]=1;var opt=document.createElement('option');opt.value=v;dl.appendChild(opt);}
+}
+// 品目名の全候補（組み込み＋マスタ登録）
+function _allFlowerNames(){
+  var names=Object.keys(VARIETY_DATA);
+  try{var cm=JSON.parse(localStorage.getItem('customMaster'))||{};for(var k in cm){if(cm.hasOwnProperty(k)&&names.indexOf(k)<0)names.push(k);}}catch(e){}
+  return names;
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
@@ -2087,15 +2099,16 @@ function addItem(data){
       '<button class="delete-btn" onclick="deleteItem('+id+')">&times;</button>'+
     '</div>'+
     '<div class="item-fields">'+
-      '<div class="item-field"><label>品目名</label><div class="item-input-row"><input type="text" id="n_'+id+'" list="nlist_'+id+'" placeholder="品目" value="'+esc(data.name||'')+'"><datalist id="nlist_'+id+'">'+Object.keys(VARIETY_DATA).map(function(k){return'<option value="'+k+'">';}).join('')+'</datalist></div></div>'+
-      '<div class="item-field"><label>品種・色</label><div class="item-input-row"><input type="text" id="v_'+id+'" list="vlist_'+id+'" placeholder="品種" value="'+esc(data.variety||'')+'"><datalist id="vlist_'+id+'"></datalist><button class="mic-sm" data-field="v_'+id+'" onclick="startFieldMic(\'v_'+id+'\')">&#x1F3A4;</button></div></div>'+
+      '<div class="item-field"><label>品目名</label><div class="item-input-row"><input type="text" id="n_'+id+'" list="nlist_'+id+'" placeholder="品目" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="'+esc(data.name||'')+'"><datalist id="nlist_'+id+'">'+_allFlowerNames().map(function(k){return'<option value="'+esc(k)+'">';}).join('')+'</datalist></div></div>'+
+      '<div class="item-field"><label>品種・色</label><div class="item-input-row"><input type="text" id="v_'+id+'" list="vlist_'+id+'" placeholder="品種" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="'+esc(data.variety||'')+'"><datalist id="vlist_'+id+'"></datalist><button class="mic-sm" data-field="v_'+id+'" onclick="startFieldMic(\'v_'+id+'\')">&#x1F3A4;</button></div></div>'+
       '<div class="item-field"><label>輪数</label><div class="item-input-row"><select id="rn_'+id+'"><option value="">--</option><option value="3F↑">3F↑</option><option value="2F">2F</option><option value="SP">SP</option></select></div></div>'+
       '<div class="item-field"><label>等級</label><div class="item-input-row"><select id="g_'+id+'" onchange="onGradeChange('+id+')"><option>A</option><option>B</option><option>秀</option><option>優</option><option>良</option><option>外</option></select></div></div>'+
-      '<div class="item-field"><label>規格(cm)</label><div class="item-input-row"><input type="text" inputmode="numeric" id="s_'+id+'" placeholder="60" value="'+esc(data.size||'')+'"></div></div>'+
-      '<div class="item-field"><label>1箱あたりの本数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="c_'+id+'" placeholder="100（本）" value="'+esc(data.count||'')+'"></div></div>'+
-      '<div class="item-field"><label>箱数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="b_'+id+'" placeholder="5（箱）" value="'+esc(data.boxes||'')+'"></div></div>'+
-      '<div class="item-field full-col"><label>備考</label><div class="item-input-row"><input type="text" id="r_'+id+'" placeholder="曲がりなど" value="'+esc(data.note||'')+'"></div></div>'+
-    '</div>';
+      '<div class="item-field"><label>規格(cm)</label><div class="item-input-row"><input type="text" inputmode="numeric" id="s_'+id+'" placeholder="60" autocomplete="off" value="'+esc(data.size||'')+'"></div></div>'+
+      '<div class="item-field"><label>1箱あたりの本数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="c_'+id+'" placeholder="100（本）" autocomplete="off" value="'+esc(data.count||'')+'"></div></div>'+
+      '<div class="item-field"><label>箱数</label><div class="item-input-row"><input type="text" inputmode="numeric" id="b_'+id+'" placeholder="5（箱）" autocomplete="off" value="'+esc(data.boxes||'')+'"></div></div>'+
+      '<div class="item-field full-col"><label>備考</label><div class="item-input-row"><input type="text" id="r_'+id+'" placeholder="曲がりなど" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="'+esc(data.note||'')+'"></div></div>'+
+    '</div>'+
+    '<div class="item-dup"><button class="dup-btn" onclick="duplicateItem('+id+')">&#x29C9; この内容を下にコピー（規格だけ変える時に便利）</button></div>';
   container.appendChild(div);
   renumberItems();
   if(data.grade){var sel=document.getElementById('g_'+id);if(sel)sel.value=data.grade;}
@@ -2166,6 +2179,22 @@ function moveItem(id,dir){
   else{var next=card.nextElementSibling;if(next)card.parentNode.insertBefore(next,card);}
   renumberItems();
   scheduleDraftBackup(); // 並び順も保存・同期する
+}
+// 品目の複製（前段の内容を次段へコピー）。元の直後に同じ内容で1件追加し、規格欄にフォーカス。
+function duplicateItem(id){
+  var src=document.getElementById('item-'+id);if(!src)return;
+  function g(p){var el=document.getElementById(p+id);return el?el.value:'';}
+  var newId=addItem({name:g('n_'),variety:g('v_'),rings:g('rn_'),grade:g('g_'),size:g('s_'),count:g('c_'),boxes:g('b_'),note:g('r_')});
+  var newCard=document.getElementById('item-'+newId);
+  if(newCard&&src){if(src.nextSibling)src.parentNode.insertBefore(newCard,src.nextSibling);else src.parentNode.appendChild(newCard);}
+  // 品種候補を元の品目名に合わせて用意（マスタ反映）
+  updateVarietyList(newId,g('n_'));
+  renumberItems();
+  updateItemSummaries&&updateItemSummaries();
+  scheduleDraftBackup();
+  var sEl=document.getElementById('s_'+newId);
+  if(sEl){sEl.focus();try{sEl.select();}catch(e){}}
+  setStatus('「'+(g('n_')||'品目')+'」を複製しました。規格を変更してください','ok');
 }
 // 表示中の「品目 N」を現在の並び順で振り直し、端の▲▼を無効化
 function renumberItems(){
