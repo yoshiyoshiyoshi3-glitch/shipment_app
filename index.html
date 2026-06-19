@@ -1348,7 +1348,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260620-0049';
+var APP_VERSION='20260620-0740';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3237,19 +3237,15 @@ function _pdfBase64FromHtml(fullHtml){
 // ポップアップブロックや、別ウィンドウからのwindow.print()不発でプリンタが反応しない問題を回避する。
 // autoPrint=true のときはこちらでprint()を呼ぶ。HTMLに自動印刷スクリプトがある場合は false。
 function _printHtmlViaIframe(html,autoPrint){
+  // 重要: 印刷フレームは印刷（スプール）が終わるまで消さない。
+  //   印刷中に削除すると「印刷ジョブ キャンセル中」になりプリンタが出力しない。
+  //   そのため、前回のフレームは「次に印刷するとき」だけ置き換える（印刷後すぐは消さない）。
   var old=document.getElementById('_printFrame');if(old&&old.parentNode)old.parentNode.removeChild(old);
   var ifr=document.createElement('iframe');
   ifr.id='_printFrame';
   ifr.style.cssText='position:fixed;left:-10000px;top:0;width:900px;height:1200px;border:0';
-  var cleaned=false;
-  var cleanup=function(){if(cleaned)return;cleaned=true;setTimeout(function(){try{if(ifr.parentNode)ifr.parentNode.removeChild(ifr);}catch(e){}},800);};
   ifr.onload=function(){
-    try{
-      var w=ifr.contentWindow;
-      if(w&&w.addEventListener)w.addEventListener('afterprint',cleanup);
-      if(autoPrint){setTimeout(function(){try{w.focus();w.print();}catch(e){}},500);}
-    }catch(e){}
-    setTimeout(cleanup,180000); // 後始末の保険
+    if(autoPrint){setTimeout(function(){try{ifr.contentWindow.focus();ifr.contentWindow.print();}catch(e){}},500);}
   };
   document.body.appendChild(ifr);
   ifr.srcdoc=html;
