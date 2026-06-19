@@ -1348,7 +1348,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260619-2355';
+var APP_VERSION='20260620-0049';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3162,9 +3162,8 @@ function printAllMarketsSlips(){
     '<button class="pbtn no-print" onclick="window.print()">🖨️ 全市場まとめて印刷</button>'+
     pages.join('')+
     '</body></html>';
-  var win=window.open('','_blank','width=960,height=800');
-  win.document.open();win.document.write(html);win.document.close();
-  setStatus('全市場伝票（'+pages.length+'市場）を開きました');
+  _printHtmlViaIframe(html,false); // 伝票HTMLは自動印刷を内蔵
+  setStatus('全市場伝票（'+pages.length+'市場）の印刷画面を開きます','ok');
 }
 // ── 本物のPDFファイル生成（html2canvas + jsPDF をCDNから読み込み）──────
 // スマホ（PWA）では window.open の印刷画面がブロックされて何も起きないため、
@@ -3234,16 +3233,32 @@ function _pdfBase64FromHtml(fullHtml){
     return btoa(s);
   });
 }
-// PDFダウンロード失敗時のフォールバック（PC向け：従来の印刷画面）
+// ポップアップを使わず、同一ページ内の隠しiframeで印刷する。
+// ポップアップブロックや、別ウィンドウからのwindow.print()不発でプリンタが反応しない問題を回避する。
+// autoPrint=true のときはこちらでprint()を呼ぶ。HTMLに自動印刷スクリプトがある場合は false。
+function _printHtmlViaIframe(html,autoPrint){
+  var old=document.getElementById('_printFrame');if(old&&old.parentNode)old.parentNode.removeChild(old);
+  var ifr=document.createElement('iframe');
+  ifr.id='_printFrame';
+  ifr.style.cssText='position:fixed;left:-10000px;top:0;width:900px;height:1200px;border:0';
+  var cleaned=false;
+  var cleanup=function(){if(cleaned)return;cleaned=true;setTimeout(function(){try{if(ifr.parentNode)ifr.parentNode.removeChild(ifr);}catch(e){}},800);};
+  ifr.onload=function(){
+    try{
+      var w=ifr.contentWindow;
+      if(w&&w.addEventListener)w.addEventListener('afterprint',cleanup);
+      if(autoPrint){setTimeout(function(){try{w.focus();w.print();}catch(e){}},500);}
+    }catch(e){}
+    setTimeout(cleanup,180000); // 後始末の保険
+  };
+  document.body.appendChild(ifr);
+  ifr.srcdoc=html;
+  return ifr;
+}
+// PDFダウンロード失敗時のフォールバック：隠しiframeで印刷画面を出す（ポップアップ不要）
 function _pdfFallbackWindow(html,okMsg){
-  var win=null;
-  try{win=window.open('','_blank','width=900,height=750');}catch(e){}
-  if(win){
-    win.document.open();win.document.write(html);win.document.close();
-    setStatus(okMsg+'（「PDFで保存」ボタンを押してください）','ok');
-  }else{
-    setStatus('PDFを作成できませんでした。通信環境（インターネット接続）をご確認ください','error');
-  }
+  _printHtmlViaIframe(html,true);
+  setStatus(okMsg+'：印刷画面が開きます。プリンターで印刷するか「PDFに保存」を選んでください','ok');
 }
 // 市場ごとの伝票HTML（PDFダウンロード・FAX添付の共通部品）
 function _buildMarketSlipHtml(market,mi){
@@ -3543,8 +3558,8 @@ function openLabelWindow(dataList){
       });
     }
   });
-  var win=window.open('','_blank','width=900,height=750');
-  win.document.open();win.document.write(buildLabelPageHTML(allLabels));win.document.close();
+  _printHtmlViaIframe(buildLabelPageHTML(allLabels),false); // ラベルHTMLは自動縮小＋自動印刷を内蔵
+  setStatus('ラベルの印刷画面を開きます。プリンターを選んで印刷してください','ok');
 }
 function buildLabelPageHTML(allLabels){
   var PER_PAGE=10,pages=[];
