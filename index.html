@@ -1342,7 +1342,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260616-0053';
+var APP_VERSION='20260619-2332';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -3341,14 +3341,14 @@ function _sendFaxViaCloud(payload){
 function sendMarketFax(market,mi){
   var fax=getMarketFax(market);
   var sendAddr=loadFaxSendAddr();
-  if(!fax){setStatus(market+'のFAX番号が未登録です（⑤設定の市場設定で登録してください）','error');return;}
-  if(!sendAddr){setStatus('秒速FAX送信の送信用メールアドレスが未登録です（⑤設定で入力してください）','error');return;}
+  if(!fax){var m1=market+'のFAX番号が登録されていません。\n⑥設定の「市場設定」でFAX番号を入力してください。';setStatus(m1,'error');alert(m1);return;}
+  if(!sendAddr){var m2='秒速FAX送信の「送信用メールアドレス」が未登録です。\n⑥設定で入力してください。';setStatus(m2,'error');alert(m2);return;}
   var faxNo=buildFaxNumber(fax);
-  if(!faxNo){setStatus(market+'のFAX番号が正しくありません（市外局番から半角数字でご登録ください）','error');return;}
+  if(!faxNo){var m3=market+'のFAX番号が正しくありません（市外局番から半角数字でご登録ください）';setStatus(m3,'error');alert(m3);return;}
   var date=document.getElementById('shipDate').value;
   var producer=document.getElementById('producerName').value;
   var items=getDistData().filter(function(it){return it.marketCounts[mi]>0;});
-  if(!items.length){setStatus(market+'への振り分けがありません','error');return;}
+  if(!items.length){var m4=market+'への振り分けがありません';setStatus(m4,'error');alert(m4);return;}
   var pinfo=loadProducerInfo();
   var pcode=getProducerCode(market);
   var bodyLines=['出荷伝票','市場名：'+market,'出荷日：'+date,'生産者：'+producer];
@@ -3362,10 +3362,15 @@ function sendMarketFax(market,mi){
   var matomeText=_matomeTextLine(mi);if(matomeText)bodyLines.push('',matomeText);
   var body=bodyLines.join('\n');
   // 伝票PDFを生成して「PDF添付」で送る（秒速FAXはPDF推奨・きれいな表のFAXになる）。
-  // PDFが作れない場合（通信不良など）のみ、従来の本文テキストで送る。
+  // PDFが作れない/重い場合（通信不良など）は、タイムアウトして本文テキストで送る（固まり防止）。
   var slip=_buildMarketSlipHtml(market,mi);
-  setStatus(market+'（FAX '+faxNo+'）の伝票PDFを作成中…');
-  _pdfBase64FromHtml(slip.html)
+  setStatus(market+'（FAX '+faxNo+'）の伝票PDFを作成中…しばらくお待ちください');
+  var pdfPromise=slip?_pdfBase64FromHtml(slip.html):Promise.reject(new Error('no slip'));
+  var timed=Promise.race([
+    pdfPromise,
+    new Promise(function(_,rej){setTimeout(function(){rej(new Error('pdf-timeout'));},12000);})
+  ]);
+  timed
     .then(function(b64){
       return _dispatchFax({to:sendAddr,subject:faxNo,pdf:b64,filename:'denpyo_'+faxNo+'.pdf'},market,faxNo,'PDF添付');
     })
@@ -3384,6 +3389,7 @@ function _dispatchFax(payload,market,faxNo,kind){
     })
     .then(function(){
       setStatus(market+'（FAX '+faxNo+'）を'+kind+'で送信しました','ok');
+      alert('✅ '+market+'（FAX '+faxNo+'）へ送信しました（'+kind+'）。');
     })
     .catch(function(e){
       // PCサーバーが無い（スマホ単体）→ クラウドから自動送信
@@ -3391,6 +3397,7 @@ function _dispatchFax(payload,market,faxNo,kind){
       return _sendFaxViaCloud(payload)
         .then(function(){
           setStatus(market+'（FAX '+faxNo+'）の送信を受け付けました。約1分以内に'+kind+'でFAXメールが送られます','ok');
+          alert('✅ '+market+'（FAX '+faxNo+'）の送信を受け付けました。\n約1分以内に'+kind+'でFAXが送られます。');
         })
         .catch(function(e2){
           alert('FAXを送信できませんでした。\n\n'+
@@ -3562,7 +3569,7 @@ function completeShipment(){
     producerTel:pinfo.tel||'',
     savedAt:new Date().toISOString(),
     items:distData.map(function(it){
-      return{name:it.name,variety:it.variety,grade:it.grade,rings:it.rings||'',size:it.size,
+      return{name:it.name,variety:it.variety,grade:it.grade,rings:it.rings||'',size:it.size,note:it.note||'',
         totalBoxes:it.totalBoxes,totalStems:it.totalStems,stemUnit:it.stemUnit,perBox:it.perBox||0,
         markets:MARKETS.map(function(m,mi){return{market:m,boxes:it.marketBoxes[mi]||0,stems:it.marketStems[mi]||0,code:getProducerCode(m)};})};    })
   };
