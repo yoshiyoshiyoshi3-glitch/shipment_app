@@ -1348,7 +1348,7 @@ try{var _pd2=parseInt(localStorage.getItem('parseDelay'));if(_pd2>=600&&_pd2<=80
 var itemCount=0,lastBuiltItemIds='',_lastShipment=null;
 var deferredInstallPrompt=null;
 // ── アプリバージョン（デプロイ時に自動更新） ─────────────────────────────
-var APP_VERSION='20260620-0804';
+var APP_VERSION='20260630-2317';
 
 // ── PWA install ──────────────────────────────────────────────────────
 window.addEventListener('beforeinstallprompt',function(e){
@@ -1465,6 +1465,53 @@ function doUpdate(){
   } else { clearAndReload(); }
 }
 // ページ読み込み完了後、バックグラウンドでサイレント確認
+// ── データ保護・自動復旧（localStorage消失対策）──────────────────────
+// ブラウザにストレージの永続化を要求し、容量逼迫等で勝手に消されにくくする
+function _requestPersistentStorage(){
+  try{
+    if(navigator.storage&&navigator.storage.persist){
+      navigator.storage.persisted().then(function(ok){if(!ok)navigator.storage.persist().catch(function(){});}).catch(function(){});
+    }
+  }catch(e){}
+}
+function _hasLocalData(){
+  try{return !!(localStorage.getItem('shipHistory')||localStorage.getItem('marketSettings')||localStorage.getItem('producerInfo')||localStorage.getItem('draftBackup'));}catch(e){return true;}
+}
+function _showRecoveryBanner(){
+  if(document.getElementById('_recoverBanner'))return;
+  var b=document.createElement('div');b.id='_recoverBanner';
+  b.style.cssText='background:#fff3e0;border:2px solid #ff9800;border-radius:8px;padding:11px 14px;margin:8px;font-size:13px;color:#bf360c;line-height:1.7';
+  b.innerHTML='<span id="_recoverClose" style="float:right;cursor:pointer;font-size:18px">&times;</span>'+
+    '&#x26A0;&#xFE0F; <strong>保存データがありません。</strong><br>'+
+    '以前のデータが消えた場合は、<strong>&#x2465;設定 →「データ同期」→「受信」</strong>、または「ファイルバックアップ → ファイルから読み込む」で復元できます。';
+  var tabs=document.querySelector('.tabs');
+  if(tabs&&tabs.parentNode)tabs.parentNode.insertBefore(b,tabs.nextSibling);else document.body.insertBefore(b,document.body.firstChild);
+  var c=document.getElementById('_recoverClose');if(c)c.onclick=function(){b.style.display='none';};
+}
+function _autoRecoverFromCloud(){
+  try{
+    if(sessionStorage.getItem('_autorec')==='1'){_showRecoveryBanner();return;}
+    var ensure=_gistId?Promise.resolve(_gistId):_discoverGistId();
+    ensure.then(function(){
+      if(!_gistId){_showRecoveryBanner();return;}
+      var headers=_gistToken?{'Authorization':'token '+_gistToken}:{};
+      return fetch('https://api.github.com/gists/'+_gistId,{headers:headers,cache:'no-store'}).then(function(r){return r.json();}).then(function(g){
+        var f=g.files&&g.files['sakai_floric_data.json'];if(!f){_showRecoveryBanner();return;}
+        var data=JSON.parse(f.content);
+        var updated=_applyGistData(data);
+        sessionStorage.setItem('_autorec','1');
+        if(updated)location.reload(); else _showRecoveryBanner();
+      });
+    }).catch(function(){_showRecoveryBanner();});
+  }catch(e){_showRecoveryBanner();}
+}
+function _dataSafetyOnLoad(){
+  _requestPersistentStorage();
+  if(_hasLocalData())return;
+  // データが空：トークン/Gistがあればクラウドから自動復旧、無ければ復元案内
+  if(_gistToken||_gistId)_autoRecoverFromCloud();
+  else _showRecoveryBanner();
+}
 window.addEventListener('load',function(){
   setTimeout(function(){checkAppUpdate(false);},4000);
   // 新しいURLで開かれた場合、Gistのリダイレクト情報を更新（新バージョンのみ書き込む）
@@ -1482,6 +1529,8 @@ window.addEventListener('load',function(){
   autoRestoreDraftOnLoad();
   // 起動時、保存データがあれば伝票出力画面の復元案内を反映
   updateRestoreDraftBox();
+  // データ保護（ストレージ永続化）＋空ならクラウド自動復旧/復元案内
+  _dataSafetyOnLoad();
 });
 
 // ── Service Worker ───────────────────────────────────────────────────
